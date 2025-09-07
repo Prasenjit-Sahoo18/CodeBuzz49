@@ -1,0 +1,1587 @@
+{% extends 'hackIDE/base.html' %}
+{% load static %}
+
+{% block title %}{{ contest.title }} - CODEQUEST{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Enhanced proctoring status indicator */
+.proctoring-status-enhanced {
+  position: fixed;
+  top: 15px;
+  right: 15px;
+  z-index: 10001;
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 15px;
+  font-size: 11px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+}
+
+.proctoring-status-enhanced .status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #dc3545;
+  animation: pulse-dot 2s infinite;
+}
+
+.proctoring-status-enhanced .status-dot.active {
+  background: #28a745;
+}
+
+.proctoring-status-enhanced .status-dot.warning {
+  background: #ffc107;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'hackIDE/js/realtime-proctoring.js' %}"></script>
+{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<div class="container">
+  <!-- Practice Mode Banner -->
+  {% if is_practice_mode %}
+    <div class="alert alert-info d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <strong>🎯 Practice Mode Active:</strong> You can continue coding for learning purposes. 
+        Submissions will not count toward the leaderboard and no camera verification is required.
+      </div>
+    </div>
+  {% endif %}
+  
+  {% if contest_camera_verified and not require_proctor %}
+    <div class="alert alert-success d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <strong>📹 Contest Camera Monitoring Active:</strong> Face verification completed. Camera will remain active throughout the contest.
+      </div>
+      <div class="d-flex gap-2">
+        <span class="badge bg-success">✅ Verified</span>
+        <span class="badge bg-info">🔴 Live</span>
+      </div>
+    </div>
+  {% endif %}
+  
+  <!-- Always show camera UI for active contests that require proctoring -->
+  {% if contest.is_running and contest.requires_proctoring and not is_practice_mode and not participant.has_final_submitted %}
+    <!-- Hidden camera container for already verified users -->
+    {% if contest_camera_verified and not require_proctor %}
+      <div id="verified-camera-container" class="mb-3">
+        <div class="card border-success">
+          <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">📹 Contest Camera Active</h6>
+            <span class="badge bg-light text-success">🔴 LIVE</span>
+          </div>
+          <div class="card-body p-2">
+            <div class="d-flex align-items-center">
+              <div class="position-relative" style="background:#000; border-radius: 8px; overflow: hidden; margin-right: 15px;">
+                <video id="verified-video" width="160" height="120" autoplay playsinline style="border-radius: 8px;"></video>
+              </div>
+              <div>
+                <div class="text-success fw-bold mb-1">✅ Camera Verified & Active</div>
+                <div class="small text-muted mb-2">Contest monitoring in progress</div>
+                <div class="small">
+                  <span class="badge bg-success me-1">Face Detection: ON</span>
+                  <span class="badge bg-info">Stream: Active</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  {% endif %}
+  
+  {% if require_proctor %}
+    <div class="alert alert-warning d-flex justify-content-between align-items-center">
+      <div>
+        <strong>🔒 Contest Entry Requires Face Verification:</strong> Camera monitoring is mandatory for this contest. Complete verification to access all problems.
+      </div>
+      <button class="btn btn-sm btn-primary" id="start-proctor">Start Contest Verification</button>
+    </div>
+    
+    <!-- SIMPLE CAMERA VERIFICATION - NO DEBUG PANEL -->
+    <div id="proctor-ui" class="mb-3" style="display:block;">
+      <div class="card border-primary">
+        <div class="card-header bg-primary text-white">
+          <h6 class="mb-0">📹 Contest Camera Verification</h6>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <div class="position-relative d-inline-block" style="background:#000; border-radius: 8px; overflow: hidden;">
+                <video id="video" width="320" height="240" autoplay playsinline style="border-radius: 8px;"></video>
+                <div id="verifying-overlay" class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-75" style="display:none; border-radius: 8px;">
+                  <div class="text-white fw-bold text-center">
+                    <div class="spinner-border spinner-border-sm mb-2"></div>
+                    <div>Verifying your face...</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <h6>Contest Camera Requirements:</h6>
+              <ul class="small mb-3">
+                <li>✅ Face must be clearly visible</li>
+                <li>✅ Good lighting required</li>
+                <li>✅ Camera will remain active during contest</li>
+                <li>✅ No re-verification needed between problems</li>
+              </ul>
+              <div class="d-grid gap-2">
+                <button class="btn btn-success" id="capture">📹 Verify Face & Start Contest</button>
+              </div>
+              <div class="mt-2">
+                <span id="status-msg" class="small text-warning">📋 Click "Start Contest Verification" button above to begin</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <canvas id="canvas" width="320" height="240" style="display:none;"></canvas>
+    </div>
+    <script>
+      // 🔥 CLEAN SIMPLE SOLUTION - No old code interference
+      console.log('🚀 Setting up clean camera system...');
+      
+      window.addEventListener('load', function() {
+        setupCleanCamera();
+      });
+      
+      function setupCleanCamera() {
+        const startBtn = document.getElementById('start-proctor');
+        const video = document.getElementById('video');
+        const statusMsg = document.getElementById('status-msg');
+        const captureBtn = document.getElementById('capture');
+        const canvas = document.getElementById('canvas');
+        
+        if (!startBtn || !video || !captureBtn) {
+          console.error('❌ Required elements not found');
+          return;
+        }
+        
+        // START CAMERA BUTTON
+        startBtn.onclick = async function() {
+          console.log('🎯 Starting camera...');
+          
+          startBtn.disabled = true;
+          startBtn.textContent = '🔄 Starting...';
+          if (statusMsg) statusMsg.textContent = '🔄 Please allow camera access...';
+          
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+            window.cameraStream = stream;
+            
+            // Hide start button, show success
+            startBtn.style.display = 'none';
+            if (statusMsg) {
+              statusMsg.innerHTML = '✅ Camera ready! Position your face and click "Verify Face & Start Contest"';
+              statusMsg.className = 'small text-success';
+            }
+            
+            // Enable verify button
+            captureBtn.disabled = false;
+            captureBtn.className = 'btn btn-success';
+            
+            console.log('✅ Camera ready!');
+          } catch (error) {
+            console.error('❌ Camera failed:', error);
+            startBtn.disabled = false;
+            startBtn.textContent = '🔄 Try Again';
+            if (statusMsg) statusMsg.textContent = '❌ Camera failed: ' + error.message;
+          }
+        };
+        
+        // VERIFY FACE BUTTON
+        captureBtn.onclick = async function() {
+          console.log('🎯 Verifying face...');
+          
+          if (!window.cameraStream) {
+            alert('Camera not started. Please start camera first.');
+            return;
+          }
+          
+          captureBtn.disabled = true;
+          captureBtn.textContent = '🔄 Verifying...';
+          
+          // Show verifying overlay
+          const overlay = document.getElementById('verifying-overlay');
+          if (overlay) overlay.style.display = 'flex';
+          
+          try {
+            // Capture frame from video
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth || 320;
+            canvas.height = video.videoHeight || 240;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = canvas.toDataURL('image/jpeg');
+            
+            // Send to server for verification
+            const formData = new FormData();
+            formData.append('image', imageData);
+            
+            const response = await fetch('/contests/1/proctor/face-check/', {
+              method: 'POST',
+              body: formData,
+              headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+              }
+            });
+            
+            const result = await response.json();
+            
+            if (result.face_detected) {
+              // Success!
+              console.log('✅ Face verification successful!');
+              
+              // Hide overlay
+              if (overlay) overlay.style.display = 'none';
+              
+              // Update UI to success state
+              document.querySelector('.alert-warning').innerHTML = `
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <strong>✅ Verification Complete!</strong> Camera monitoring is now active.
+                    <p class="mb-0 small">You can now access all contest problems.</p>
+                  </div>
+                  <span class="badge bg-success">✅ Verified</span>
+                </div>
+              `;
+              document.querySelector('.alert-warning').className = 'alert alert-success';
+              
+              // Hide verification UI
+              document.getElementById('proctor-ui').style.display = 'none';
+              
+              // Set verification status
+              sessionStorage.setItem('cameraVerified', 'true');
+              sessionStorage.setItem('contestId', '1');
+              
+            } else {
+              // Face not detected
+              alert('No face detected. Please position your face clearly in the camera and try again.');
+              captureBtn.disabled = false;
+              captureBtn.textContent = '📹 Verify Face & Start Contest';
+              if (overlay) overlay.style.display = 'none';
+            }
+            
+          } catch (error) {
+            console.error('❌ Verification failed:', error);
+            alert('Verification failed. Please try again.');
+            captureBtn.disabled = false;
+            captureBtn.textContent = '📹 Verify Face & Start Contest';
+            if (overlay) overlay.style.display = 'none';
+          }
+        };
+        
+        // Set up initial button state
+        startBtn.style.display = 'inline-block';
+        startBtn.disabled = false;
+        startBtn.textContent = '🎯 Start Camera';
+        startBtn.className = 'btn btn-success';
+        
+        captureBtn.disabled = true;
+        captureBtn.className = 'btn btn-secondary';
+        
+        console.log('✅ Clean camera system ready!');
+      }
+      
+      // Test function
+      window.testCamera = function() {
+        const btn = document.getElementById('start-proctor');
+        if (btn) btn.click();
+      };
+      
+      // End of clean camera script
+    </script>
+
+            startBtn.classList.remove('btn-primary');
+            startBtn.classList.add('btn-warning');
+          }
+          
+          // Show restart option for troubleshooting
+          if (restartBtn) {
+            restartBtn.style.display = 'inline-block';
+            restartBtn.textContent = '🔧 Advanced Options';
+          }
+          
+          throw error;
+        }
+      }
+      console.log('Initializing face verification system...');
+      
+      // Enhanced debug logging
+      console.log('🔍 Environment Check:');
+      console.log('- Page URL:', window.location.href);
+      console.log('- Protocol:', location.protocol);
+      console.log('- Host:', location.hostname);
+      console.log('- RealtimeProctoring available:', typeof RealtimeProctoring !== 'undefined');
+      console.log('- MediaDevices support:', !!navigator.mediaDevices);
+      console.log('- getUserMedia support:', !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
+      
+      // Check if all required elements are present
+      const elements = {
+        startBtn: document.getElementById('start-proctor'),
+        video: document.getElementById('video'),
+        statusMsg: document.getElementById('status-msg'),
+        captureBtn: document.getElementById('capture'),
+        ui: document.getElementById('proctor-ui')
+      };
+      
+      console.log('🔍 DOM Elements Check:');
+      Object.entries(elements).forEach(([name, element]) => {
+        console.log(`- ${name}:`, !!element);
+      });
+      
+      // If critical elements are missing, show error
+      if (!elements.video || !elements.statusMsg || !elements.ui) {
+        console.error('❌ Critical UI elements missing!');
+        if (elements.statusMsg) {
+          elements.statusMsg.innerHTML = '❌ Page loading error - refresh page (Ctrl+Shift+R)';
+          elements.statusMsg.classList.add('text-danger');
+        }
+        return;
+      }
+      
+      // Check if GlobalCameraManager already has an active stream
+      if (window.contestCameraManager && window.contestCameraManager.isActive) {
+        console.log('GlobalCameraManager already active, reusing stream');
+        const existingStream = window.contestCameraManager.stream;
+        if (existingStream && existingStream.active) {
+          video.srcObject = existingStream;
+          mediaStream = existingStream;
+          ui.style.display = 'none';  // Hide UI immediately since already verified
+          
+          // Hide verification requirement and show success
+          document.querySelector('.alert-warning').innerHTML = `
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <strong>✅ Camera monitoring active!</strong> Continuing from previous verification.
+              </div>
+            </div>
+          `;
+          document.querySelector('.alert-warning').className = 'alert alert-success';
+          
+          // Set session key to maintain camera state
+          fetch('{% url 'hackIDE:contest_detail' contest.id %}', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: 'action=maintain_camera&contest_id={{ contest.id }}'
+          });
+          
+          return;
+        }
+      }
+      
+      // Check session storage for camera state from navigation
+      const cameraVerified = sessionStorage.getItem('cameraVerified') === 'true';
+      const streamActive = sessionStorage.getItem('streamActive') === 'true';
+      const contestId = sessionStorage.getItem('contestId');
+      const navigationTime = sessionStorage.getItem('navigationTime');
+      
+      // If recently navigated back with verified camera
+      if (cameraVerified && contestId === '{{ contest.id }}' && navigationTime) {
+        const timeSinceNavigation = Date.now() - parseInt(navigationTime);
+        if (timeSinceNavigation < 120000) { // Within 2 minutes
+          console.log('Recent navigation detected, skipping camera verification');
+          ui.style.display = 'none';
+          document.querySelector('.alert-warning').innerHTML = `
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <strong>✅ Camera verified!</strong> No re-verification needed for returning navigation.
+              </div>
+            </div>
+          `;
+          document.querySelector('.alert-warning').className = 'alert alert-success';
+          
+          // Set server session to maintain state
+          fetch('{% url 'hackIDE:contest_detail' contest.id %}', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: 'action=set_camera_verified&contest_id={{ contest.id }}'
+          });
+          
+          return;
+        }
+      }
+      
+      // For fresh users or expired sessions, start camera verification
+      console.log('🚀 Starting fresh camera verification...');
+      
+      // Show UI and status immediately
+      if (elements.ui) {
+        elements.ui.style.display = 'block';
+      }
+      
+      // ALWAYS ensure the manual start button is available and working
+      if (elements.startBtn) {
+        elements.startBtn.style.display = 'inline-block';
+        elements.startBtn.textContent = '🎯 Start Contest Verification';
+        elements.startBtn.classList.remove('btn-primary');
+        elements.startBtn.classList.add('btn-success');
+        elements.startBtn.disabled = false;
+      }
+      
+      // Show initial status
+      if (elements.statusMsg) {
+        elements.statusMsg.innerHTML = `
+          <div class="mb-2">📷 Camera access required for contest verification</div>
+          <div class="small text-muted">Click "Start Contest Verification" button below to begin</div>
+        `;
+        elements.statusMsg.classList.remove('text-danger', 'text-warning', 'text-success');
+        elements.statusMsg.classList.add('text-info');
+      }
+      
+      // 🔥 FOR NEW USERS: Skip automatic initialization entirely
+      // This prevents conflicts with manual button setup
+      console.log('⚠️ Skipping automatic initialization for new users - manual button only');
+      
+      // Skip all automatic initialization - manual button only
+      console.log('⚠️ Skipping automatic initialization - manual button ONLY for new users');
+      
+      // Show manual setup message
+      if (elements.statusMsg) {
+        elements.statusMsg.innerHTML = `
+          <div class="mb-2">📋 Manual camera setup required</div>
+          <div class="small text-muted">Click "Start Contest Verification" button below to begin</div>
+        `;
+        elements.statusMsg.classList.remove('text-info', 'text-success', 'text-danger');
+        elements.statusMsg.classList.add('text-warning');
+      }
+      
+      // Ensure manual button is always available
+      if (elements.startBtn) {
+        elements.startBtn.style.display = 'inline-block';
+        elements.startBtn.textContent = '🎯 Start Contest Verification';
+        elements.startBtn.classList.remove('btn-primary');
+        elements.startBtn.classList.add('btn-success');
+        elements.startBtn.disabled = false;
+      }
+      
+      // 🎯 BULLETPROOF MANUAL BUTTON - SIMPLEST POSSIBLE APPROACH
+      console.log('🚀 Setting up BULLETPROOF manual button for new users...');
+      
+      // Wait for DOM to be fully ready
+      document.addEventListener('DOMContentLoaded', function() {
+        setupBulletproofButton();
+      });
+      
+      // Also run immediately in case DOM is already ready
+      if (document.readyState === 'loading') {
+        // DOM still loading, wait for it
+        document.addEventListener('DOMContentLoaded', setupBulletproofButton);
+      } else {
+        // DOM already loaded, run immediately
+        setupBulletproofButton();
+      }
+      
+      function setupBulletproofButton() {
+        console.log('🔧 Setting up bulletproof button...');
+        
+        const btn = document.getElementById('start-proctor');
+        if (!btn) {
+          console.error('❌ CRITICAL: Button element not found!');
+          return;
+        }
+        
+        console.log('✅ Button element found:', btn);
+        
+        // SIMPLE, DIRECT CAMERA FUNCTION
+        async function startCameraSimple() {
+          console.log('🎯 BULLETPROOF: Starting camera for new user...');
+          
+          // Update button immediately
+          btn.disabled = true;
+          btn.textContent = '🔄 Starting Camera...';
+          btn.style.backgroundColor = '#ffc107';
+          
+          // Update status
+          const statusMsg = document.getElementById('status-msg');
+          if (statusMsg) {
+            statusMsg.innerHTML = '🔄 Starting camera... Please allow access when prompted';
+            statusMsg.className = 'small text-info';
+          }
+          
+          try {
+            console.log('📷 Requesting camera access...');
+            
+            // Simple, direct camera request
+            const stream = await navigator.mediaDevices.getUserMedia({
+              video: {
+                facingMode: 'user',
+                width: { ideal: 320 },
+                height: { ideal: 240 }
+              }
+            });
+            
+            console.log('✅ Camera access granted!');
+            
+            // Connect to video element
+            const video = document.getElementById('video');
+            if (video) {
+              video.srcObject = stream;
+              
+              // Wait for video to be ready
+              video.onloadedmetadata = function() {
+                video.play().catch(e => console.warn('Play failed:', e));
+              };
+              
+              // Store stream globally
+              window.cameraStream = stream;
+              
+              console.log('✅ Video connected successfully!');
+            }
+            
+            // Update UI to success state
+            btn.style.display = 'none'; // Hide start button
+            
+            if (statusMsg) {
+              statusMsg.innerHTML = '✅ Camera active! Position your face and click "Verify Face & Start Contest"';
+              statusMsg.className = 'small text-success';
+            }
+            
+            // Enable verification button
+            const captureBtn = document.getElementById('capture');
+            if (captureBtn) {
+              captureBtn.disabled = false;
+              captureBtn.className = 'btn btn-success';
+            }
+            
+            console.log('🎉 BULLETPROOF: Camera setup complete!');
+            
+          } catch (error) {
+            console.error('❌ Camera failed:', error);
+            
+            // Reset button for retry
+            btn.disabled = false;
+            btn.textContent = '🔄 Retry Camera';
+            btn.style.backgroundColor = '#dc3545';
+            
+            // Show error message
+            if (statusMsg) {
+              let errorMsg = '❌ Camera failed';
+              let solution = 'Try refreshing the page';
+              
+              if (error.name === 'NotAllowedError') {
+                errorMsg = '🚫 Camera permission denied';
+                solution = 'Click camera icon in browser address bar → Allow → Refresh page';
+              } else if (error.name === 'NotFoundError') {
+                errorMsg = '📷 No camera found';
+                solution = 'Connect camera → Close Zoom/Teams → Try different browser';
+              } else if (error.name === 'NotReadableError') {
+                errorMsg = '🔒 Camera in use by another app';
+                solution = 'Close other apps using camera → Restart browser';
+              }
+              
+              statusMsg.innerHTML = `<strong>${errorMsg}</strong><br><small>${solution}</small>`;
+              statusMsg.className = 'small text-danger';
+            }
+          }
+        }
+        
+        // BULLETPROOF EVENT BINDING
+        
+        // Remove ALL existing event listeners
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+        
+        // Set up the new button
+        newBtn.id = 'start-proctor';
+        newBtn.className = 'btn btn-success';
+        newBtn.textContent = '🎯 Start Contest Verification';
+        newBtn.disabled = false;
+        newBtn.style.display = 'inline-block';
+        
+        // MULTIPLE BINDING METHODS for maximum compatibility
+        newBtn.addEventListener('click', startCameraSimple);
+        newBtn.onclick = startCameraSimple;
+        
+        // Add visual feedback
+        newBtn.addEventListener('mouseenter', function() {
+          if (!newBtn.disabled) {
+            newBtn.style.transform = 'scale(1.05)';
+          }
+        });
+        
+        newBtn.addEventListener('mouseleave', function() {
+          newBtn.style.transform = 'scale(1)';
+        });
+        
+        console.log('✅ BULLETPROOF button setup complete!');
+        console.log('🎯 Button state:', {
+          id: newBtn.id,
+          disabled: newBtn.disabled,
+          visible: newBtn.style.display !== 'none',
+          hasClick: !!newBtn.onclick,
+          text: newBtn.textContent
+        });
+        
+        // Global test function
+        window.testButton = function() {
+          console.log('🧪 Testing bulletproof button...');
+          const testBtn = document.getElementById('start-proctor');
+          if (testBtn) {
+            console.log('✅ Found button, triggering click...');
+            testBtn.click();
+          } else {
+            console.error('❌ Button not found!');
+          }
+        };
+        
+        // Emergency camera test
+        window.emergencyCamera = function() {
+          console.log('🚨 Emergency camera test...');
+          navigator.mediaDevices.getUserMedia({video: true})
+            .then(stream => {
+              console.log('✅ Emergency camera works!');
+              const video = document.getElementById('video');
+              if (video) video.srcObject = stream;
+            })
+            .catch(err => console.error('❌ Emergency camera failed:', err));
+        };
+        
+        console.log('💡 Test with: window.testButton() or window.emergencyCamera()');
+      }
+      
+      captureBtn?.addEventListener('click', async () => {
+        // Disable UI
+        captureBtn.disabled = true;
+        startBtn && (startBtn.disabled = true);
+
+        // 1) Capture a frame FIRST
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg');
+
+        // 2) Show verifying overlay AFTER capture (but keep camera running)
+        overlay.style.display = 'flex';
+        statusMsg.textContent = 'Verifying...';
+        statusMsg.classList.remove('text-danger');
+        statusMsg.classList.add('text-muted');
+
+        // 4) Send to server
+        try {
+          const form = new FormData();
+          form.append('image', dataUrl);
+          const resp = await fetch('{% url 'hackIDE:proctor_face_check' contest.id %}', { method: 'POST', body: form, headers: { 'X-CSRFToken': '{{ csrf_token }}' } });
+          const json = await resp.json();
+          if(json.face_detected){
+            statusMsg.textContent = '✅ Contest verification successful! Camera monitoring is now active.';
+            statusMsg.classList.remove('text-muted');
+            statusMsg.classList.add('text-success');
+            overlay.style.display = 'none';
+            
+            // Initialize GlobalCameraManager with verified stream
+            if (window.contestCameraManager && mediaStream) {
+              console.log('Initializing GlobalCameraManager for contest monitoring...');
+              window.contestCameraManager.stream = mediaStream;
+              window.contestCameraManager.isActive = true;
+              window.contestCameraManager.contestId = '{{ contest.id }}';
+              window.contestCameraManager.attachToElement(video, true);
+              window.contestCameraManager.saveState();
+              
+              // Create hidden video for persistence during navigation
+              window.contestCameraManager.createHiddenVideo();
+              
+              // Mark contest camera as verified
+              sessionStorage.setItem('cameraVerified', 'true');
+              sessionStorage.setItem('contestId', '{{ contest.id }}');
+              sessionStorage.setItem('streamActive', 'true');
+              sessionStorage.setItem('contestCameraVerified', 'true');
+              
+              // Set server-side session for contest camera verification
+              fetch('{% url 'hackIDE:contest_detail' contest.id %}', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                  'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: 'action=set_camera_verified&contest_id={{ contest.id }}'
+              });
+            }
+            
+            // Transform UI to success state
+            ui.innerHTML = `
+              <div class="alert alert-success d-flex justify-content-between align-items-center">
+                <div>
+                  <strong>📹 Contest Camera Verification Complete!</strong>
+                  <p class="mb-0 small">Camera monitoring is active for this contest. You can now access all problems.</p>
+                </div>
+                <div class="d-flex gap-2">
+                  <span class="badge bg-success">✅ Verified</span>
+                  <span class="badge bg-info">🔴 Monitoring</span>
+                </div>
+              </div>
+            `;
+            
+            // 🔥 INITIALIZE REAL-TIME PROCTORING after successful verification
+            setTimeout(() => {
+              if (typeof RealtimeProctoring !== 'undefined') {
+                console.log('Starting real-time proctoring after verification...');
+                try {
+                  const contestProctoring = new RealtimeProctoring('{{ contest.id }}', '{{ csrf_token }}');
+                  
+                  contestProctoring.setOnWarning((data) => {
+                    console.log('Proctoring warning after verification:', data);
+                  });
+                  
+                  contestProctoring.setOnTermination((data) => {
+                    console.log('Contest terminated after verification:', data);
+                    setTimeout(() => {
+                      window.location.href = '/contests/';
+                    }, 3000);
+                  });
+                  
+                  // Reuse the existing verified camera stream
+                  if (mediaStream && mediaStream.active) {
+                    contestProctoring.stream = mediaStream;
+                    contestProctoring.video.srcObject = mediaStream;
+                  }
+                  
+                  contestProctoring.start();
+                  window.contestDetailProctoring = contestProctoring;
+                  
+                  console.log('Real-time proctoring started after verification');
+                } catch (error) {
+                  console.error('Failed to start proctoring after verification:', error);
+                }
+              }
+            }, 1000);
+            
+            // Update the main alert
+            const mainAlert = document.querySelector('.alert-warning');
+            if (mainAlert) {
+              mainAlert.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <strong>📹 Contest Camera Monitoring Active:</strong> Face verification completed. Camera will remain active throughout the contest.
+                  </div>
+                  <div class="d-flex gap-2">
+                    <span class="badge bg-success">✅ Verified</span>
+                    <span class="badge bg-info">🔴 Live</span>
+                  </div>
+                </div>
+              `;
+              mainAlert.className = 'alert alert-success d-flex justify-content-between align-items-center mb-3';
+            }
+          } else {
+            // Hide overlay and show clear retry message
+            overlay.style.display = 'none';
+            statusMsg.textContent = '❌ No face detected. Please ensure good lighting and your face is clearly visible, then try again.';
+            statusMsg.classList.remove('text-muted');
+            statusMsg.classList.add('text-warning');
+            captureBtn.disabled = false;
+            captureBtn.innerHTML = '🔁 Retry Verification';
+            startBtn && (startBtn.disabled = false);
+            verificationInProgress = false;
+          }
+        } catch (e) {
+          overlay.style.display = 'none';
+          statusMsg.textContent = 'Verification error. Please retry.';
+          statusMsg.classList.remove('text-muted');
+          statusMsg.classList.add('text-danger');
+          captureBtn.disabled = false;
+          startBtn && (startBtn.disabled = false);
+        }
+      });
+    </script>
+  {% endif %}
+  
+  <!-- Initialize camera for verified users -->
+  {% if contest_camera_verified and not require_proctor and not participant.has_final_submitted and not is_practice_mode %}
+    <script>
+      // Initialize camera for already verified users on contest detail page
+      console.log('Initializing camera for verified contest user...');
+      
+      const verifiedVideo = document.getElementById('verified-video');
+      let verifiedMediaStream = null;
+      
+      async function initializeVerifiedCamera() {
+        try {
+          // Check if GlobalCameraManager already has an active stream
+          if (window.contestCameraManager && window.contestCameraManager.isActive) {
+            console.log('Using existing GlobalCameraManager stream for verified user');
+            const existingStream = window.contestCameraManager.stream;
+            if (existingStream && existingStream.active && verifiedVideo) {
+              verifiedVideo.srcObject = existingStream;
+              verifiedMediaStream = existingStream;
+              return;
+            }
+          }
+          
+          // Start fresh camera for verified user
+          console.log('Starting fresh camera for verified user');
+          verifiedMediaStream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+              facingMode: 'user',
+              width: { ideal: 160, min: 120 },
+              height: { ideal: 120, min: 90 }
+            } 
+          });
+          
+          if (verifiedVideo) {
+            verifiedVideo.srcObject = verifiedMediaStream;
+          }
+          
+          // Initialize GlobalCameraManager with this stream
+          if (window.contestCameraManager && verifiedMediaStream) {
+            console.log('Initializing GlobalCameraManager for verified user');
+            window.contestCameraManager.stream = verifiedMediaStream;
+            window.contestCameraManager.isActive = true;
+            window.contestCameraManager.contestId = '{{ contest.id }}';
+            window.contestCameraManager.attachToElement(verifiedVideo, true);
+            window.contestCameraManager.saveState();
+            
+            // Create hidden video for persistence during navigation
+            window.contestCameraManager.createHiddenVideo();
+          }
+          
+          // Set session storage for navigation continuity
+          sessionStorage.setItem('cameraVerified', 'true');
+          sessionStorage.setItem('contestId', '{{ contest.id }}');
+          sessionStorage.setItem('streamActive', 'true');
+          sessionStorage.setItem('contestCameraVerified', 'true');
+          
+          console.log('Camera initialized successfully for verified user');
+          
+          // 🔥 INITIALIZE REAL-TIME PROCTORING for contest detail page
+          initializeDetailPageProctoring();
+          
+        } catch (error) {
+          console.error('Failed to initialize camera for verified user:', error);
+          
+          // Show error message in the camera container
+          const container = document.getElementById('verified-camera-container');
+          if (container) {
+            container.innerHTML = `
+              <div class="alert alert-warning d-flex justify-content-between align-items-center">
+                <div>
+                  <strong>⚠️ Camera Access Issue:</strong> Unable to access camera. Please refresh page or check camera permissions.
+                </div>
+                <button class="btn btn-sm btn-outline-primary" onclick="location.reload()">Retry</button>
+              </div>
+            `;
+          }
+        }
+      }
+      
+      // Initialize camera when page loads for verified users
+      document.addEventListener('DOMContentLoaded', function() {
+        // Small delay to ensure GlobalCameraManager is loaded
+        setTimeout(() => {
+          initializeVerifiedCamera();
+        }, 500);
+      });
+      
+      // Also try immediate initialization
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeVerifiedCamera);
+      } else {
+        initializeVerifiedCamera();
+      }
+      
+      // 🔥 REAL-TIME PROCTORING INITIALIZATION for verified users
+      function initializeDetailPageProctoring() {
+        console.log('Starting real-time proctoring for contest detail page...');
+        
+        // Only start proctoring if RealtimeProctoring class is available
+        if (typeof RealtimeProctoring !== 'undefined') {
+          try {
+            // Initialize the proctoring system
+            const contestProctoring = new RealtimeProctoring('{{ contest.id }}', '{{ csrf_token }}');
+            
+            // Configure callbacks for proctoring events
+            contestProctoring.setOnWarning((data) => {
+              console.log('Proctoring warning on detail page:', data);
+            });
+            
+            contestProctoring.setOnTermination((data) => {
+              console.log('Contest terminated on detail page:', data);
+              // Redirect to contest list after termination
+              setTimeout(() => {
+                window.location.href = '/contests/';
+              }, 3000);
+            });
+            
+            contestProctoring.setOnStatusUpdate((status, message) => {
+              console.log('Proctoring status update:', status, message);
+              
+              // Update visual indicators based on proctoring status
+              const container = document.getElementById('verified-camera-container');
+              if (container) {
+                const monitoringText = container.querySelector('.small.text-muted');
+                if (monitoringText) {
+                  if (status === 'active') {
+                    monitoringText.innerHTML = 'Real-time monitoring active • Face detection every 3 seconds';
+                    monitoringText.className = 'small text-success';
+                  } else if (status === 'warning') {
+                    monitoringText.innerHTML = 'Face detection warning • Please ensure face is visible';
+                    monitoringText.className = 'small text-warning';
+                  } else if (status === 'error') {
+                    monitoringText.innerHTML = 'Proctoring connection error • Attempting to reconnect';
+                    monitoringText.className = 'small text-danger';
+                  }
+                }
+              }
+            });
+            
+            // Try to reuse existing camera stream for proctoring
+            if (verifiedMediaStream && verifiedMediaStream.active) {
+              console.log('Reusing camera stream for real-time proctoring');
+              contestProctoring.stream = verifiedMediaStream;
+              contestProctoring.video.srcObject = verifiedMediaStream;
+            }
+            
+            // Start monitoring with existing camera
+            contestProctoring.start();
+            
+            // Store reference globally for other pages
+            window.contestDetailProctoring = contestProctoring;
+            
+            console.log('Real-time proctoring active on contest detail page');
+            
+            // Update camera container to show proctoring is active
+            const container = document.getElementById('verified-camera-container');
+            if (container) {
+              const statusBadges = container.querySelector('.small');
+              if (statusBadges) {
+                statusBadges.innerHTML = `
+                  <span class="badge bg-success me-1">Face Detection: ACTIVE</span>
+                  <span class="badge bg-info me-1">Stream: Live</span>
+                  <span class="badge bg-primary">Monitoring: ON</span>
+                `;
+              }
+              
+              const statusText = container.querySelector('.text-success.fw-bold');
+              if (statusText) {
+                statusText.innerHTML = '✅ Camera Active • Real-time Proctoring ON';
+              }
+              
+              const subText = container.querySelector('.small.text-muted');
+              if (subText) {
+                subText.innerHTML = 'Contest monitoring • Face detection every 3 seconds';
+              }
+            }
+            
+          } catch (error) {
+            console.error('Failed to initialize real-time proctoring:', error);
+          }
+        } else {
+          console.warn('RealtimeProctoring class not available');
+        }
+      }
+    </script>
+  {% endif %}
+  
+  <!-- Show status for final submitted or restricted users -->
+  {% if participant.has_final_submitted %}
+    <div class="alert alert-info d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <strong>🏁 Contest Completed:</strong> You have submitted your final solutions. Camera monitoring has been stopped.
+      </div>
+      <div class="d-flex gap-2">
+        <span class="badge bg-info">✅ Final Submitted</span>
+        <span class="badge bg-secondary">📹 Camera Off</span>
+      </div>
+    </div>
+  {% elif is_practice_mode %}
+    <div class="alert alert-warning d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <strong>⚠️ Practice Mode Active:</strong> Contest access restricted due to violations. Camera monitoring is disabled.
+      </div>
+      <div class="d-flex gap-2">
+        <span class="badge bg-warning">🔄 Practice Mode</span>
+        <span class="badge bg-secondary">📹 Camera Off</span>
+      </div>
+    </div>
+  {% endif %}
+    <div class="row">
+        <div class="col-md-12">
+  
+  <!-- Cleanup script for final submitted or restricted users -->
+  {% if participant.has_final_submitted or is_practice_mode %}
+    <script>
+      // Clean up any active camera or proctoring for final submitted or restricted users
+      console.log('Contest completed or restricted - stopping all camera activity');
+      
+      // Stop GlobalCameraManager if active
+      if (window.contestCameraManager) {
+        console.log('Stopping GlobalCameraManager for completed/restricted contest');
+        window.contestCameraManager.stopForFinalSubmission();
+      }
+      
+      // Stop any active real-time proctoring
+      if (window.proctoring && window.proctoring.isMonitoringActive()) {
+        console.log('Stopping real-time proctoring for completed/restricted contest');
+        window.proctoring.stop();
+      }
+      
+      // Stop any contest detail proctoring
+      if (window.contestDetailProctoring && window.contestDetailProctoring.isMonitoringActive()) {
+        console.log('Stopping contest detail proctoring for completed/restricted contest');
+        window.contestDetailProctoring.stop();
+      }
+      
+      // Clear all session storage related to camera
+      try {
+        sessionStorage.removeItem('cameraVerified');
+        sessionStorage.removeItem('contestId');
+        sessionStorage.removeItem('streamActive');
+        sessionStorage.removeItem('contestCameraVerified');
+        sessionStorage.removeItem('navigationTime');
+        console.log('Session storage cleared for camera state');
+      } catch (e) {
+        console.warn('Failed to clear session storage:', e);
+      }
+      
+      // Stop any video streams that might still be active
+      const allVideos = document.querySelectorAll('video');
+      allVideos.forEach(video => {
+        if (video.srcObject) {
+          console.log('Stopping video stream:', video);
+          video.srcObject.getTracks().forEach(track => track.stop());
+          video.srcObject = null;
+        }
+      });
+      
+      console.log('All camera and proctoring activities stopped for completed/restricted contest');
+    </script>
+  {% endif %}
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'hackIDE:contest_list' %}">Contests</a></li>
+                    <li class="breadcrumb-item active">{{ contest.title }}</li>
+                </ol>
+            </nav>
+            
+            <div class="contest-header">
+                <h1>{{ contest.title }}</h1>
+                <p class="lead">{{ contest.description }}</p>
+                
+                <div class="contest-stats">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="stat-card">
+                                <h4>{{ problems.count }}</h4>
+                                <small>Problems</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card">
+                                <h4>{{ participant.total_score }}</h4>
+                                <small>Your Score</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card">
+                                <h4>{{ participant.problems_solved }}</h4>
+                                <small>Solved</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card">
+                                <h4 id="time-remaining">--:--:--</h4>
+                                <small>Time Left</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="contest-actions mt-3">
+                    <a href="{% url 'hackIDE:contest_leaderboard' contest.id %}" class="btn btn-outline-primary">
+                        🏆 View Leaderboard
+                    </a>
+                    {% if contest.is_running %}
+                        <span class="badge badge-success ml-2">🟢 Live Now</span>
+                    {% endif %}
+                    
+                    <!-- Contest-wide Final Submit Button -->
+                    {% if contest.is_running and not participant.has_final_submitted %}
+                        <button id="contest-final-submit" class="btn btn-danger ms-3">
+                            🏁 Submit Final Contest Solutions
+                        </button>
+                    {% elif participant.has_final_submitted %}
+                        <button class="btn btn-success ms-3" disabled>
+                            ✅ Final Submission Made
+                        </button>
+                        <small class="text-muted d-block mt-1">
+                            Submitted: {{ participant.final_submitted_at|date:"M d, Y H:i" }} | 
+                            Final Score: {{ participant.final_submission_score }} points
+                        </small>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <hr>
+            
+            <div class="problems-section">
+                <h3>Problems</h3>
+                
+                {% if problems %}
+                    <div class="problems-list">
+                        {% for problem in problems %}
+                        <div class="problem-card position-relative">
+                            <div class="problem-header">
+                                <h5>{{ problem.title }}</h5>
+                                <div class="problem-meta">
+                                    <span class="points">{{ problem.points }} pts</span>
+                                    <span class="time-limit">{{ problem.time_limit }}ms</span>
+                                </div>
+                            </div>
+                            
+                            <p class="problem-description">{{ problem.description|truncatewords:30 }}</p>
+                            
+                            <div class="problem-actions">
+                                <a href="{% url 'hackIDE:contest_problem' contest.id problem.id %}" class="btn btn-primary btn-sm" onclick="preserveCameraForNavigation(event, this.href)">
+                                    Solve Problem
+                                </a>
+                            </div>
+
+                            <div class="badges-br position-absolute d-flex align-items-center">
+                                {% if problem.latest_status %}
+                                    {% if problem.latest_status == 'ACCEPTED' %}
+                                        <span class="submission-status-text">✅ Solved</span>
+                                    {% elif problem.latest_status == 'WRONG_ANSWER' %}
+                                        <span class="submission-status-text">❌ Wrong Answer</span>
+                                    {% elif problem.latest_status == 'PENDING' %}
+                                        <span class="submission-status-text">⏳ Pending</span>
+                                    {% else %}
+                                        {% if problem.latest_status == 'RUNTIME_ERROR' %}
+                                            <span class="status-badge error">RuntimeError</span>
+                                        {% elif problem.latest_status == 'TIME_LIMIT' %}
+                                            <span class="status-badge error">TimeLimit</span>
+                                        {% elif problem.latest_status == 'MEMORY_LIMIT' %}
+                                            <span class="status-badge error">MemoryLimit</span>
+                                        {% elif problem.latest_status == 'COMPILATION_ERROR' %}
+                                            <span class="status-badge error">CompilationError</span>
+                                        {% else %}
+                                            <span class="status-badge error">{{ problem.latest_status|title }}</span>
+                                        {% endif %}
+                                    {% endif %}
+                                {% endif %}
+                                {% if problem.company_tag %}
+                                <span class="company-badge">{{ problem.company_tag }}</span>
+                                {% endif %}
+                                <span class="difficulty-badge {{ problem.difficulty|lower }} text-uppercase">{{ problem.difficulty }}</span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">No problems available for this contest.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Contest Final Submission Modal -->
+<div class="modal fade" id="contestFinalSubmitModal" tabindex="-1" aria-labelledby="contestFinalSubmitModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="contestFinalSubmitModalLabel">🏁 Contest Final Submission</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <h6><strong>⚠️ Important:</strong></h6>
+                    <p class="mb-0">This will finalize your submissions for <strong>{{ contest.title }}</strong>. Only your best (ACCEPTED) solution for each problem will be included in your final score.</p>
+                </div>
+                
+                <div class="contest-summary">
+                    <h6>Contest Summary:</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <ul class="list-unstyled">
+                                <li><strong>Contest:</strong> {{ contest.title }}</li>
+                                <li><strong>Current Score:</strong> {{ participant.total_score }} points</li>
+                                <li><strong>Problems Solved:</strong> {{ participant.problems_solved }}</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <ul class="list-unstyled">
+                                <li><strong>Total Problems:</strong> {{ problems.count }}</li>
+                                <li><strong>Time Remaining:</strong> <span id="modal-time-remaining">--:--:--</span></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="final-submissions-preview">
+                    <h6>Solutions to be Finalized:</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Problem</th>
+                                    <th>Status</th>
+                                    <th>Score</th>
+                                    <th>Last Submitted</th>
+                                </tr>
+                            </thead>
+                            <tbody id="final-submissions-table">
+                                {% for problem in problems %}
+                                <tr>
+                                    <td>{{ problem.title }}</td>
+                                    <td>
+                                        {% if problem.latest_status == 'ACCEPTED' %}
+                                            <span class="text-success">✅ Accepted</span>
+                                        {% elif problem.latest_status %}
+                                            <span class="text-danger">{{ problem.latest_status|title }}</span>
+                                        {% else %}
+                                            <span class="text-muted">Not Attempted</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if problem.latest_status == 'ACCEPTED' %}
+                                            {{ problem.points }} pts
+                                        {% else %}
+                                            0 pts
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if problem.latest_submission_time %}
+                                            {{ problem.latest_submission_time|date:"M d, H:i" }}
+                                        {% else %}
+                                            --
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="form-check mt-3">
+                    <input class="form-check-input" type="checkbox" id="confirmContestFinalSubmit">
+                    <label class="form-check-label" for="confirmContestFinalSubmit">
+                        I understand this is my final submission for the entire contest and cannot be undone.
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmContestFinalSubmitBtn" disabled>
+                    🏁 Submit Final Contest Solutions
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.contest-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 10px;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    text-align: center;
+    background: rgba(255,255,255,0.1);
+    padding: 1rem;
+    border-radius: 8px;
+}
+
+.stat-card h4 {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: bold;
+}
+
+.problem-card {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    background: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.problem-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.problem-meta {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.points, .time-limit {
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.problem-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+}
+
+/* Bottom-right badges container */
+.badges-br {
+    right: 12px;
+    bottom: 12px;
+    gap: 8px;
+}
+
+/* Submission status as black text */
+.submission-status-text {
+    color: #000;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* Generic status pill (used for error-like statuses) */
+.status-badge {
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: .03em;
+    white-space: nowrap;
+}
+.status-badge.error { background: #dc3545; color: #fff; }
+
+.company-badge {
+    background: #0d6efd;
+    color: #fff;
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: .03em;
+    white-space: nowrap;
+}
+
+.difficulty-badge {
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: .03em;
+    color: #fff;
+    white-space: nowrap;
+}
+
+/* Color mapping for difficulty */
+.difficulty-badge.easy { background-color: #28a745; }
+.difficulty-badge.medium { background-color: #ffc107; color: #212529; }
+.difficulty-badge.hard { background-color: #dc3545; }
+
+/* Contest Final Submit Button */
+#contest-final-submit {
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    border: none;
+    font-weight: bold;
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4);
+    transition: all 0.3s ease;
+}
+
+#contest-final-submit:hover {
+    background: linear-gradient(135deg, #c82333 0%, #a71e2a 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.6);
+}
+
+.final-submissions-preview {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 15px 0;
+}
+
+.contest-summary {
+    background: #e3f2fd;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 15px 0;
+}
+
+.modal-header.bg-danger {
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%) !important;
+}
+</style>
+
+<script>
+// Countdown timer for contest
+function updateTimer() {
+    const now = new Date().getTime();
+    const endTime = new Date('{{ contest.end_time|date:"c" }}').getTime();
+    const timeLeft = endTime - now;
+    
+    if (timeLeft > 0) {
+        const hours = Math.floor(timeLeft / (1000 * 60 * 60));
+        const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+        
+        const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        document.getElementById('time-remaining').innerHTML = timeString;
+        
+        // Update modal timer too
+        const modalTimer = document.getElementById('modal-time-remaining');
+        if (modalTimer) {
+            modalTimer.innerHTML = timeString;
+        }
+    } else {
+        document.getElementById('time-remaining').innerHTML = '00:00:00';
+        const modalTimer = document.getElementById('modal-time-remaining');
+        if (modalTimer) {
+            modalTimer.innerHTML = '00:00:00';
+        }
+    }
+}
+
+// Update timer every second
+setInterval(updateTimer, 1000);
+
+// Contest Final Submit functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const contestFinalSubmitBtn = document.getElementById('contest-final-submit');
+    const confirmCheckbox = document.getElementById('confirmContestFinalSubmit');
+    const confirmBtn = document.getElementById('confirmContestFinalSubmitBtn');
+    
+    // Show modal when contest final submit is clicked
+    if (contestFinalSubmitBtn) {
+        contestFinalSubmitBtn.addEventListener('click', function() {
+            const modal = new bootstrap.Modal(document.getElementById('contestFinalSubmitModal'));
+            modal.show();
+        });
+    }
+    
+    // Enable/disable confirm button based on checkbox
+    if (confirmCheckbox && confirmBtn) {
+        confirmCheckbox.addEventListener('change', function() {
+            confirmBtn.disabled = !this.checked;
+        });
+        
+        // Handle final submission
+        confirmBtn.addEventListener('click', function() {
+            this.disabled = true;
+            this.innerHTML = '⏳ Processing Final Submission...';
+            
+            // Stop camera monitoring for final submission
+            if (window.contestCameraManager) {
+                console.log('Stopping camera for final submission');
+                window.contestCameraManager.stopForFinalSubmission();
+            }
+            
+            // Submit final contest submission
+            fetch(`/contests/{{ contest.id }}/final-submit/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value || '{{ csrf_token }}'
+                },
+                body: 'action=final_submit'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Hide modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('contestFinalSubmitModal'));
+                    modal.hide();
+                    
+                    // Show success message
+                    alert(`✅ Final submission successful!\n\nFinal Score: ${data.final_score} points\nProblems Finalized: ${data.problems_finalized}\nSubmitted: ${data.submitted_at}\n\n📹 Camera monitoring has been stopped.`);
+                    
+                    // Reload page to update UI
+                    location.reload();
+                } else {
+                    alert('❌ Error: ' + data.message);
+                    this.disabled = false;
+                    this.innerHTML = '🏁 Submit Final Contest Solutions';
+                }
+            })
+            .catch(error => {
+                alert('❌ Network error: ' + error.message);
+                this.disabled = false;
+                this.innerHTML = '🏁 Submit Final Contest Solutions';
+            });
+        });
+    }
+});
+
+// Camera preservation function for navigation
+function preserveCameraForNavigation(event, targetUrl) {
+    event.preventDefault();
+    
+    console.log('Preserving camera for navigation to:', targetUrl);
+    
+    // Always set session storage for navigation continuity
+    sessionStorage.setItem('cameraVerified', 'true');
+    sessionStorage.setItem('contestId', '{{ contest.id }}');
+    sessionStorage.setItem('streamActive', 'true');
+    sessionStorage.setItem('navigationTime', Date.now().toString());
+    
+    // Set server-side session to maintain camera verification
+    fetch('{% url 'hackIDE:contest_detail' contest.id %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: 'action=set_camera_verified&contest_id={{ contest.id }}'
+    });
+    
+    // Use GlobalCameraManager for robust camera preservation
+    if (window.contestCameraManager && window.contestCameraManager.isStreamActive()) {
+        console.log('Using GlobalCameraManager for navigation preservation');
+        
+        // GlobalCameraManager will handle stream preservation automatically
+        window.contestCameraManager.prepareForNavigation();
+        
+        // Show loading message
+        const loadingMessage = document.createElement('div');
+        loadingMessage.id = 'camera-transition-message';
+        loadingMessage.innerHTML = `
+            <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                        background: rgba(0,0,0,0.8); color: white; padding: 20px; border-radius: 10px; 
+                        z-index: 10000; text-align: center;">
+                <div style="margin-bottom: 10px;">📹 Maintaining Camera Stream</div>
+                <div style="font-size: 14px; opacity: 0.8;">Navigating to problem page...</div>
+            </div>
+        `;
+        document.body.appendChild(loadingMessage);
+        
+        // Navigate after a short delay
+        setTimeout(() => {
+            window.location.href = targetUrl;
+        }, 500);
+        
+    } else {
+        // Immediate navigation for fallback
+        console.log('Direct navigation with session preservation');
+        window.location.href = targetUrl;
+    }
+}
+updateTimer();
+</script>
+{% endblock %}

@@ -1,0 +1,269 @@
+{% extends 'hackIDE/base.html' %}
+{% block title %}Premium Problems - CODEBUZZ{% endblock %}
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>⭐ Premium Problems</h2>
+        <a href="{% url 'hackIDE:premium_plans' %}" class="btn btn-warning">Buy/Manage Premium</a>
+    </div>
+    
+    <!-- Filter and Sort Controls -->
+    <div class="filter-controls mb-4">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="company-filter" class="form-label">🏢 Filter by Company:</label>
+                    <select id="company-filter" class="form-select" onchange="applyFilters()">
+                        <option value="all" {% if selected_company == 'all' %}selected{% endif %}>All Companies</option>
+                        {% for company in companies %}
+                            <option value="{{ company }}" {% if selected_company == company %}selected{% endif %}>
+                                {{ company }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="difficulty-sort" class="form-label">📊 Sort by Difficulty:</label>
+                    <select id="difficulty-sort" class="form-select" onchange="applyFilters()">
+                        <option value="default" {% if selected_sort == 'default' %}selected{% endif %}>Default (A-Z)</option>
+                        <option value="easy-hard" {% if selected_sort == 'easy-hard' %}selected{% endif %}>Easy → Hard</option>
+                        <option value="hard-easy" {% if selected_sort == 'hard-easy' %}selected{% endif %}>Hard → Easy</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Results Summary -->
+        <div class="results-summary">
+            <span class="badge bg-primary">{{ filtered_count }} of {{ total_count }} problems</span>
+            {% if selected_company != 'all' %}
+                <span class="badge bg-info">Company: {{ selected_company }}</span>
+            {% endif %}
+            {% if selected_sort != 'default' %}
+                <span class="badge bg-success">
+                    Sort: {% if selected_sort == 'easy-hard' %}Easy → Hard{% elif selected_sort == 'hard-easy' %}Hard → Easy{% endif %}
+                </span>
+            {% endif %}
+            {% if selected_company != 'all' or selected_sort != 'default' %}
+                <button class="btn btn-sm btn-outline-secondary ms-2" onclick="clearFilters()">Clear Filters</button>
+            {% endif %}
+        </div>
+    </div>
+    <div class="list-group">
+        {% for problem in problems %}
+            {% if problem.contest %}
+            <a class="list-group-item list-group-item-action position-relative" href="{% url 'hackIDE:contest_problem' problem.contest.id problem.id %}">
+            {% else %}
+            <a class="list-group-item list-group-item-action position-relative" href="{% url 'hackIDE:premium_problem_solve' problem.id %}">
+            {% endif %}
+                <div class="d-flex w-100 justify-content-between">
+                    <h5 class="mb-1">{{ problem.title }}</h5>
+                    <div>
+                        <small class="text-muted ml-2">{{ problem.points }} pts</small>
+                    </div>
+                </div>
+                <p class="mb-1">
+                    {% if problem.contest %}
+                        Contest: {{ problem.contest.title }}
+                    {% endif %}
+                </p>
+
+                <div class="badges-br position-absolute d-flex align-items-center">
+                    {% if problem.company_tag %}
+                    <span class="company-badge">{{ problem.company_tag }}</span>
+                    {% endif %}
+                    <span class="difficulty-badge {{ problem.difficulty|lower }} text-uppercase">{{ problem.difficulty }}</span>
+                </div>
+            </a>
+        {% empty %}
+            <p>No premium problems yet.</p>
+        {% endfor %}
+    </div>
+</div>
+<style>
+.list-group-item { padding-bottom: 2.2rem; }
+.badges-br { right: 12px; bottom: 12px; gap: 8px; }
+.company-badge {
+    background: #0d6efd;
+    color: #fff;
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: .03em;
+    white-space: nowrap;
+}
+.difficulty-badge {
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: .03em;
+    color: #fff;
+    white-space: nowrap;
+}
+.difficulty-badge.easy { background-color: #28a745; }
+.difficulty-badge.medium { background-color: #ffc107; color: #212529; }
+.difficulty-badge.hard { background-color: #dc3545; }
+
+/* Filter Controls Styling */
+.filter-controls {
+    background: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.form-label {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 0.5rem;
+}
+
+.form-select {
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.form-select:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+.results-summary {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #dee2e6;
+}
+
+.results-summary .badge {
+    margin-right: 0.5rem;
+    font-size: 0.875rem;
+    padding: 0.5rem 0.75rem;
+}
+
+/* Loading state */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .filter-controls .row {
+        margin: 0;
+    }
+    
+    .filter-controls .col-md-6 {
+        padding: 0;
+        margin-bottom: 1rem;
+    }
+    
+    .results-summary .badge {
+        display: block;
+        margin-bottom: 0.5rem;
+        width: fit-content;
+    }
+}
+</style>
+
+<script>
+function applyFilters() {
+    const company = document.getElementById('company-filter').value;
+    const sort = document.getElementById('difficulty-sort').value;
+    
+    // Show loading state
+    document.querySelector('.container').classList.add('loading');
+    
+    // Build URL with parameters
+    const url = new URL(window.location.href);
+    url.searchParams.set('company', company);
+    url.searchParams.set('sort', sort);
+    
+    // Navigate to filtered URL
+    window.location.href = url.toString();
+}
+
+function clearFilters() {
+    // Show loading state
+    document.querySelector('.container').classList.add('loading');
+    
+    // Navigate to clean URL without parameters
+    window.location.href = window.location.pathname;
+}
+
+// Auto-save filter preferences to localStorage
+function saveFilterPreferences() {
+    const company = document.getElementById('company-filter').value;
+    const sort = document.getElementById('difficulty-sort').value;
+    
+    localStorage.setItem('premium_problems_company_filter', company);
+    localStorage.setItem('premium_problems_difficulty_sort', sort);
+}
+
+// Load filter preferences from localStorage
+function loadFilterPreferences() {
+    const savedCompany = localStorage.getItem('premium_problems_company_filter');
+    const savedSort = localStorage.getItem('premium_problems_difficulty_sort');
+    
+    if (savedCompany && document.getElementById('company-filter').value === 'all') {
+        document.getElementById('company-filter').value = savedCompany;
+    }
+    
+    if (savedSort && document.getElementById('difficulty-sort').value === 'default') {
+        document.getElementById('difficulty-sort').value = savedSort;
+    }
+}
+
+// Enhanced filter function with preferences
+function applyFiltersWithPreferences() {
+    saveFilterPreferences();
+    applyFilters();
+}
+
+// Update event listeners
+document.addEventListener('DOMContentLoaded', function() {
+    // Load preferences on page load
+    loadFilterPreferences();
+    
+    // Update event listeners to save preferences
+    document.getElementById('company-filter').onchange = applyFiltersWithPreferences;
+    document.getElementById('difficulty-sort').onchange = applyFiltersWithPreferences;
+    
+    // Add keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        // Ctrl/Cmd + R to clear filters
+        if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+            e.preventDefault();
+            clearFilters();
+        }
+    });
+});
+</script>
+{% endblock %}
+
+
+
+

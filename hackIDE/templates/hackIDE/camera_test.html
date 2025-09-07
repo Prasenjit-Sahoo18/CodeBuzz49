@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Camera Test - Debug Tool</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .error { background: #f8d7da; border-color: #f5c6cb; }
+        .info { background: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-warning { background: #ffc107; color: black; }
+        .btn-danger { background: #dc3545; color: white; }
+        video { width: 320px; height: 240px; border: 2px solid #ddd; border-radius: 5px; }
+        #console { background: #f8f9fa; border: 1px solid #dee2e6; padding: 10px; font-family: monospace; font-size: 12px; max-height: 200px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Camera Diagnostic Tool</h1>
+        <p>This tool helps diagnose camera issues in the contest system.</p>
+        
+        <!-- System Check -->
+        <div class="test-section" id="system-check">
+            <h3>🔍 System Compatibility Check</h3>
+            <div id="system-results">
+                <p>Click "Run System Check" to test your browser compatibility...</p>
+            </div>
+            <button class="btn-primary" onclick="runSystemCheck()">Run System Check</button>
+        </div>
+        
+        <!-- Camera Test -->
+        <div class="test-section" id="camera-test">
+            <h3>📷 Camera Access Test</h3>
+            <div id="camera-results">
+                <p>Click "Test Camera" to test camera access...</p>
+            </div>
+            <div id="camera-container" style="margin: 10px 0;">
+                <video id="test-video" autoplay muted style="display: none;"></video>
+            </div>
+            <button class="btn-primary" onclick="testCamera()">Test Camera</button>
+            <button class="btn-warning" onclick="stopCamera()" style="display: none;" id="stop-btn">Stop Camera</button>
+        </div>
+        
+        <!-- Enhanced Test (Same as Contest) -->
+        <div class="test-section" id="enhanced-test">
+            <h3>🎯 Enhanced Camera Test (Contest Method)</h3>
+            <div id="enhanced-results">
+                <p>Click "Test Enhanced Camera" to use the same method as contest verification...</p>
+            </div>
+            <div id="enhanced-camera-container" style="margin: 10px 0;">
+                <video id="enhanced-video" autoplay muted style="display: none;"></video>
+            </div>
+            <button class="btn-primary" onclick="testEnhancedCamera()">Test Enhanced Camera</button>
+            <button class="btn-warning" onclick="stopEnhancedCamera()" style="display: none;" id="enhanced-stop-btn">Stop Enhanced Camera</button>
+        </div>
+        
+        <!-- Console Log -->
+        <div class="test-section">
+            <h3>📋 Debug Console</h3>
+            <div id="console"></div>
+            <button class="btn-warning" onclick="clearConsole()">Clear Console</button>
+        </div>
+        
+        <!-- Solutions -->
+        <div class="test-section info">
+            <h3>💡 Common Solutions</h3>
+            <ul>
+                <li><strong>Permission Denied:</strong> Click camera icon in address bar, select "Allow"</li>
+                <li><strong>No Camera Found:</strong> Check if camera is connected, close other apps using camera</li>
+                <li><strong>Camera In Use:</strong> Close Zoom, Teams, Skype, or other camera apps</li>
+                <li><strong>Browser Issues:</strong> Try Chrome, Firefox, or refresh page (Ctrl+Shift+R)</li>
+                <li><strong>Mac Users:</strong> Check System Preferences → Security & Privacy → Camera</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        let testStream = null;
+        let enhancedStream = null;
+        
+        function log(message, type = 'info') {
+            const console = document.getElementById('console');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? '#dc3545' : type === 'success' ? '#28a745' : type === 'warning' ? '#ffc107' : '#6c757d';
+            console.innerHTML += `<div style="color: ${color}; margin: 2px 0;">[${timestamp}] ${message}</div>`;
+            console.scrollTop = console.scrollHeight;
+            
+            // Also log to browser console
+            if (type === 'error') {
+                console.error(message);
+            } else if (type === 'warning') {
+                console.warn(message);
+            } else {
+                console.log(message);
+            }
+        }
+        
+        function clearConsole() {
+            document.getElementById('console').innerHTML = '';
+        }
+        
+        async function runSystemCheck() {
+            log('🔍 Running system compatibility check...', 'info');
+            
+            const results = document.getElementById('system-results');
+            let html = '<h4>System Check Results:</h4>';
+            
+            // Check browser support
+            const hasMediaDevices = !!navigator.mediaDevices;
+            const hasGetUserMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+            const hasPermissions = !!navigator.permissions;
+            
+            html += `<p>📱 MediaDevices API: ${hasMediaDevices ? '✅ Supported' : '❌ Not supported'}</p>`;
+            html += `<p>📷 getUserMedia API: ${hasGetUserMedia ? '✅ Supported' : '❌ Not supported'}</p>`;
+            html += `<p>🔐 Permissions API: ${hasPermissions ? '✅ Supported' : '❌ Not supported'}</p>`;
+            
+            // Browser detection
+            const userAgent = navigator.userAgent;
+            let browser = 'Unknown';
+            if (userAgent.includes('Chrome')) browser = 'Chrome';
+            else if (userAgent.includes('Firefox')) browser = 'Firefox';
+            else if (userAgent.includes('Safari')) browser = 'Safari';
+            else if (userAgent.includes('Edge')) browser = 'Edge';
+            
+            html += `<p>🌐 Browser: ${browser}</p>`;
+            html += `<p>🔒 Protocol: ${location.protocol} ${location.protocol === 'https:' ? '✅' : '⚠️'}</p>`;
+            html += `<p>🏠 Host: ${location.hostname} ${['localhost', '127.0.0.1'].includes(location.hostname) ? '✅' : ''}</p>`;
+            
+            // Check camera permissions if supported
+            if (hasPermissions) {
+                try {
+                    const permission = await navigator.permissions.query({name: 'camera'});
+                    html += `<p>📹 Camera Permission: ${permission.state} ${permission.state === 'granted' ? '✅' : permission.state === 'denied' ? '❌' : '⚠️'}</p>`;
+                    log(`📹 Camera permission state: ${permission.state}`, permission.state === 'granted' ? 'success' : 'warning');
+                } catch (e) {
+                    html += `<p>📹 Camera Permission: Could not check</p>`;
+                    log(`⚠️ Permission check failed: ${e.message}`, 'warning');
+                }
+            }
+            
+            // Check available cameras
+            if (hasMediaDevices) {
+                try {
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const cameras = devices.filter(d => d.kind === 'videoinput');
+                    html += `<p>📷 Available Cameras: ${cameras.length} found</p>`;
+                    cameras.forEach((cam, i) => {
+                        html += `<p style="margin-left: 20px;">Camera ${i+1}: ${cam.label || 'Unnamed Camera'}</p>`;
+                    });
+                    log(`📷 Found ${cameras.length} cameras`, cameras.length > 0 ? 'success' : 'warning');
+                } catch (e) {
+                    html += `<p>📷 Camera enumeration failed: ${e.message}</p>`;
+                    log(`❌ Camera enumeration failed: ${e.message}`, 'error');
+                }
+            }
+            
+            results.innerHTML = html;
+            
+            // Overall assessment
+            if (hasGetUserMedia && hasMediaDevices) {
+                results.className = 'test-section success';
+                log('✅ System check passed - camera should work', 'success');
+            } else {
+                results.className = 'test-section error';
+                log('❌ System check failed - camera may not work', 'error');
+            }
+        }
+        
+        async function testCamera() {
+            log('📷 Starting basic camera test...', 'info');
+            
+            const results = document.getElementById('camera-results');
+            const video = document.getElementById('test-video');
+            const stopBtn = document.getElementById('stop-btn');
+            
+            try {
+                results.innerHTML = '<p>🔄 Requesting camera access...</p>';
+                
+                testStream = await navigator.mediaDevices.getUserMedia({video: true});
+                
+                video.srcObject = testStream;
+                video.style.display = 'block';
+                video.play();
+                
+                results.innerHTML = '<p style="color: green;">✅ Camera test successful! Basic camera access works.</p>';
+                results.className = 'test-section success';
+                stopBtn.style.display = 'inline-block';
+                
+                log('✅ Basic camera test successful', 'success');
+                
+            } catch (error) {
+                results.innerHTML = `<p style="color: red;">❌ Camera test failed: ${error.name} - ${error.message}</p>`;
+                results.className = 'test-section error';
+                
+                log(`❌ Basic camera test failed: ${error.name} - ${error.message}`, 'error');
+                
+                // Provide specific guidance
+                if (error.name === 'NotAllowedError') {
+                    results.innerHTML += '<p><strong>Solution:</strong> Click the camera icon in your browser address bar and select "Allow"</p>';
+                } else if (error.name === 'NotFoundError') {
+                    results.innerHTML += '<p><strong>Solution:</strong> Check if your camera is connected and not being used by other applications</p>';
+                } else if (error.name === 'NotReadableError') {
+                    results.innerHTML += '<p><strong>Solution:</strong> Close other applications using the camera (Zoom, Teams, Skype, etc.)</p>';
+                }
+            }
+        }
+        
+        function stopCamera() {
+            if (testStream) {
+                testStream.getTracks().forEach(track => track.stop());
+                testStream = null;
+                document.getElementById('test-video').style.display = 'none';
+                document.getElementById('stop-btn').style.display = 'none';
+                document.getElementById('camera-results').innerHTML = '<p>Camera stopped.</p>';
+                log('📷 Basic camera stopped', 'info');
+            }
+        }
+        
+        async function testEnhancedCamera() {
+            log('🎯 Starting enhanced camera test (contest method)...', 'info');
+            
+            const results = document.getElementById('enhanced-results');
+            const video = document.getElementById('enhanced-video');
+            const stopBtn = document.getElementById('enhanced-stop-btn');
+            
+            try {
+                results.innerHTML = '<p>🔄 Running enhanced camera initialization...</p>';
+                
+                // Step 1: Check browser support
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('Camera not supported: getUserMedia API unavailable in this browser');
+                }
+                log('✅ Browser support check passed', 'success');
+                
+                // Step 2: Check permissions
+                results.innerHTML = '<p>🔐 Checking camera permissions...</p>';
+                if (navigator.permissions) {
+                    try {
+                        const permission = await navigator.permissions.query({name: 'camera'});
+                        log(`📷 Camera permission state: ${permission.state}`, 'info');
+                        
+                        if (permission.state === 'denied') {
+                            throw new Error('Camera permission was previously denied. Please reset permissions.');
+                        }
+                    } catch (permError) {
+                        log(`⚠️ Permission query failed (continuing anyway): ${permError.message}`, 'warning');
+                    }
+                }
+                
+                // Step 3: Try progressive camera constraints (same as contest)
+                const constraintOptions = [
+                    {
+                        video: { 
+                            facingMode: 'user',
+                            width: { ideal: 320, min: 240 },
+                            height: { ideal: 240, min: 180 }
+                        } 
+                    },
+                    {
+                        video: { 
+                            facingMode: 'user',
+                            width: 320,
+                            height: 240
+                        }
+                    },
+                    {
+                        video: { 
+                            facingMode: 'user'
+                        }
+                    },
+                    {
+                        video: true
+                    }
+                ];
+                
+                let lastError = null;
+                
+                for (let i = 0; i < constraintOptions.length; i++) {
+                    try {
+                        log(`🎯 Attempting camera constraint ${i + 1}/${constraintOptions.length}`, 'info');
+                        results.innerHTML = `<p>🔄 Requesting camera... (Attempt ${i + 1}/${constraintOptions.length})</p>`;
+                        
+                        enhancedStream = await navigator.mediaDevices.getUserMedia(constraintOptions[i]);
+                        
+                        log(`✅ Camera constraint ${i + 1} successful!`, 'success');
+                        break;
+                        
+                    } catch (error) {
+                        log(`❌ Camera constraint ${i + 1} failed: ${error.name} - ${error.message}`, 'warning');
+                        lastError = error;
+                        
+                        if (i < constraintOptions.length - 1) {
+                            // Small delay before next attempt
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                        }
+                    }
+                }
+                
+                if (!enhancedStream) {
+                    log('🚫 All camera constraint attempts failed', 'error');
+                    throw lastError || new Error('Camera initialization failed after all attempts');
+                }
+                
+                // Apply stream to video element
+                results.innerHTML = '<p>🎥 Starting camera preview...</p>';
+                video.srcObject = enhancedStream;
+                video.style.display = 'block';
+                
+                // Wait for video to be ready and play
+                await new Promise(resolve => {
+                    if (video.readyState >= 2) return resolve();
+                    video.addEventListener('canplay', resolve, { once: true });
+                });
+                
+                await video.play();
+                
+                results.innerHTML = '<p style="color: green;">✅ Enhanced camera test successful! This is exactly how the contest system works.</p>';
+                results.className = 'test-section success';
+                stopBtn.style.display = 'inline-block';
+                
+                log('🎉 Enhanced camera test successful!', 'success');
+                
+            } catch (error) {
+                results.innerHTML = `<p style="color: red;">❌ Enhanced camera test failed: ${error.name} - ${error.message}</p>`;
+                results.className = 'test-section error';
+                
+                log(`❌ Enhanced camera test failed: ${error.name} - ${error.message}`, 'error');
+                
+                // Enhanced error reporting (same as contest)
+                const errorDetails = {
+                    errorName: error.name,
+                    errorMessage: error.message,
+                    browser: navigator.userAgent.includes('Chrome') ? 'Chrome' : 
+                             navigator.userAgent.includes('Firefox') ? 'Firefox' : 
+                             navigator.userAgent.includes('Safari') ? 'Safari' : 'Other',
+                    isHttps: location.protocol === 'https:',
+                    isLocalhost: ['localhost', '127.0.0.1'].includes(location.hostname),
+                    mediaDevicesSupport: !!navigator.mediaDevices,
+                    getUserMediaSupport: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+                    timestamp: new Date().toISOString()
+                };
+                
+                log(`📊 Detailed error info: ${JSON.stringify(errorDetails, null, 2)}`, 'error');
+                
+                // User-friendly error messages with specific solutions
+                let errorMessage = 'Camera initialization failed';
+                let suggestion = 'Please try refreshing the page.';
+                
+                if (error.name === 'NotAllowedError') {
+                    errorMessage = '🚫 Camera permission denied';
+                    suggestion = 'Click the camera icon in your browser address bar, select "Allow", then refresh the page (Ctrl+Shift+R).';
+                } else if (error.name === 'NotFoundError') {
+                    errorMessage = '📷 No camera found';
+                    suggestion = 'Please connect a camera device and refresh the page. Close other apps using the camera (Zoom, Teams, etc.).';
+                } else if (error.name === 'NotReadableError') {
+                    errorMessage = '🔒 Camera is already in use';
+                    suggestion = 'Close other applications or browser tabs using the camera, then try again.';
+                } else if (error.name === 'OverconstrainedError') {
+                    errorMessage = '⚠️ Camera compatibility issue';
+                    suggestion = 'Your camera doesn\'t support the required settings. Try a different camera or browser.';
+                } else if (error.message.includes('getUserMedia API unavailable')) {
+                    errorMessage = '🌐 Browser not supported';
+                    suggestion = 'Please use Chrome 61+, Firefox 55+, or Safari 11+. Update your browser to the latest version.';
+                } else {
+                    errorMessage = `❌ Camera error: ${error.message || 'Unknown error'}`;
+                    suggestion = 'Try refreshing the page, using a different browser, or check your camera permissions.';
+                }
+                
+                results.innerHTML += `
+                    <div style="margin-top: 10px;">
+                        <strong>${errorMessage}</strong><br>
+                        <small style="color: #666;">${suggestion}</small>
+                    </div>
+                `;
+            }
+        }
+        
+        function stopEnhancedCamera() {
+            if (enhancedStream) {
+                enhancedStream.getTracks().forEach(track => track.stop());
+                enhancedStream = null;
+                document.getElementById('enhanced-video').style.display = 'none';
+                document.getElementById('enhanced-stop-btn').style.display = 'none';
+                document.getElementById('enhanced-results').innerHTML = '<p>Enhanced camera stopped.</p>';
+                log('🎯 Enhanced camera stopped', 'info');
+            }
+        }
+        
+        // Auto-run system check on load
+        document.addEventListener('DOMContentLoaded', function() {
+            log('🚀 Camera diagnostic tool loaded', 'info');
+            setTimeout(runSystemCheck, 500);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+{% extends 'hackIDE/base.html' %}
+{% load static %}
+
+{% block title %}Proctoring Test{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Proctoring System Test</h1>
+    <div id="status">Initializing...</div>
+    <div id="result"></div>
+    
+    <button id="test-btn" class="btn btn-primary">Test Proctoring</button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('test-btn').addEventListener('click', async function() {
+        try {
+            document.getElementById('status').innerHTML = 'Testing proctoring initialization...';
+            
+            // Check if required classes are available
+            if (typeof window.RealtimeProctoring === 'undefined') {
+                document.getElementById('result').innerHTML = 
+                    '<div class="alert alert-danger">RealtimeProctoring class not found</div>';
+                return;
+            }
+            
+            if (typeof window.contestCameraManager === 'undefined') {
+                document.getElementById('result').innerHTML = 
+                    '<div class="alert alert-danger">GlobalCameraManager not found</div>';
+                return;
+            }
+            
+            // Test GlobalCameraManager
+            const cameraManager = window.contestCameraManager;
+            document.getElementById('result').innerHTML += 
+                '<div class="alert alert-info">GlobalCameraManager: Available</div>';
+            
+            // Test RealtimeProctoring creation
+            try {
+                const proctoring = new RealtimeProctoring(1, 'test-token');
+                document.getElementById('result').innerHTML += 
+                    '<div class="alert alert-info">RealtimeProctoring: Created successfully</div>';
+                
+                // Test start method
+                const result = await proctoring.start();
+                document.getElementById('result').innerHTML += 
+                    result ? 
+                    '<div class="alert alert-success">Proctoring started successfully</div>' : 
+                    '<div class="alert alert-warning">Proctoring start returned false</div>';
+            } catch (error) {
+                console.error('Proctoring test failed:', error);
+                document.getElementById('result').innerHTML += 
+                    '<div class="alert alert-danger">Proctoring creation/start failed: ' + error.message + '</div>';
+            }
+            
+            document.getElementById('status').innerHTML = 'Test completed';
+        } catch (error) {
+            console.error('Test failed:', error);
+            document.getElementById('status').innerHTML = 'Test failed';
+            document.getElementById('result').innerHTML = 
+                '<div class="alert alert-danger">Test failed: ' + error.message + '</div>';
+        }
+    });
+});
+</script>
+{% endblock %}

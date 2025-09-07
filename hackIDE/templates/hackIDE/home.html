@@ -1,0 +1,69 @@
+{% extends 'hackIDE/base.html' %}
+{% block title %}Home - CODEBUZZ{% endblock %}
+{% block content %}
+<div class="container py-3">
+  <div class="row mb-3">
+    <div class="col">
+      <h2>Welcome, {{ user.username }} 👋</h2>
+      {% if has_subscription %}
+        <span class="badge bg-success">Premium Active</span>
+      {% else %}
+        <a class="btn btn-warning btn-sm ms-2" href="{% url 'hackIDE:premium_plans' %}">Buy Premium</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-md-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <h5 class="card-title">Start Coding</h5>
+          <p class="card-text">Open the online editor and run code instantly.</p>
+          <a href="{% url 'hackIDE:code_editor' %}" class="btn btn-primary">Open Editor</a>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <h5 class="card-title">Contests</h5>
+          <p class="card-text">Compete and climb the leaderboard.</p>
+          <a href="{% url 'hackIDE:contest_list' %}" class="btn btn-outline-primary">Browse Contests</a>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <h5 class="card-title">Premium Problems</h5>
+          <p class="card-text">Solve curated problems for subscribers.</p>
+          <a href="{% url 'hackIDE:premium_problems' %}" class="btn btn-outline-warning">View Premium</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mt-4">
+    <div class="col">
+      <h4>Upcoming/Active Contests</h4>
+      <div class="list-group">
+        {% for c in upcoming_contests %}
+          <a class="list-group-item list-group-item-action" href="{% url 'hackIDE:contest_detail' c.id %}">
+            <div class="d-flex w-100 justify-content-between">
+              <h5 class="mb-1">{{ c.title }}</h5>
+              <small class="text-muted">{{ c.start_time|date:'M d, Y H:i' }} → {{ c.end_time|date:'M d, Y H:i' }}</small>
+            </div>
+            <p class="mb-1">{{ c.description|truncatechars:120 }}</p>
+          </a>
+        {% empty %}
+          <p class="text-muted">No contests yet.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+
+
+

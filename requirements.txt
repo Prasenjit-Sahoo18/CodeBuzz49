@@ -1,0 +1,68 @@
+# Core Django and web framework
+Django==5.2.5
+asgiref==3.9.1
+sqlparse==0.5.3
+
+# CORS and middleware
+django-cors-headers==3.14.0
+
+# Static file serving
+whitenoise==6.7.0
+
+# HTTP requests and API calls
+requests==2.32.5
+urllib3==1.26.5
+certifi==2025.8.3
+charset-normalizer==3.4.3
+idna==3.10
+
+# Payment processing
+razorpay==1.4.2
+
+# Authentication
+oauthlib==0.6.1
+
+# Image and file processing
+Pillow==10.4.0
+PyPDF2==1.25.1
+
+# Face detection for proctoring (optional - will be installed if compatible)
+# Note: These packages are optional and only needed for proctoring functionality
+# If deployment fails due to these packages, they can be removed
+# mediapipe>=0.8.11
+# opencv-python>=4.5.5.64
+# opencv-contrib-python>=4.5.5.64
+# numpy>=1.21.6
+
+# Code highlighting and templating
+Pygments==2.7.4
+Jinja2==2.11.3
+MarkupSafe==0.23
+
+# HTML parsing
+beautifulsoup4==4.4.0
+
+# JSON handling
+simplejson==3.3.1
+
+# Internationalization
+Babel==2.1.1
+python-dateutil==2.9.0.post0
+pytz==2025.2
+
+# Utilities
+decorator==5.2.1
+packaging==25.0
+pyparsing==3.2.3
+PyYAML==6.0.2
+six==1.17.0
+
+# Development and deployment
+gunicorn==22.0.0
+wheel==0.24.0
+dj-database-url==0.5.0
+
+# System dependencies (auto-installed)
+cffi==1.17.1
+pycparser==2.22
+setuptools==80.9.0

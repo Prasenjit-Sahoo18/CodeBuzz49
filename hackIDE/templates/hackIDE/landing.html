@@ -1,0 +1,460 @@
+{% extends 'hackIDE/base.html' %}
+{% load static %}
+
+{% block title %}CODEBUZZ | Welcome to AI-Powered Coding Contests{% endblock %}
+
+{% block extra_css %}
+<style>
+    .hero-section {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 100px 0;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .hero-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="50" cy="50" r="1" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+        opacity: 0.3;
+    }
+    
+    .hero-content {
+        position: relative;
+        z-index: 2;
+    }
+    
+    .hero-title {
+        font-size: 3.5rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    
+    .hero-subtitle {
+        font-size: 1.5rem;
+        margin-bottom: 2rem;
+        opacity: 0.9;
+    }
+    
+    .cta-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    
+    .btn-hero {
+        padding: 15px 40px;
+        font-size: 1.2rem;
+        font-weight: 600;
+        border-radius: 50px;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        border: none;
+    }
+    
+    .btn-primary-hero {
+        background: linear-gradient(45deg, #28a745, #20c997);
+        color: white;
+    }
+    
+    .btn-primary-hero:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 25px rgba(40, 167, 69, 0.4);
+        color: white;
+    }
+    
+    .btn-outline-hero {
+        background: transparent;
+        color: white;
+        border: 3px solid white;
+    }
+    
+    .btn-outline-hero:hover {
+        background: white;
+        color: #667eea;
+        transform: translateY(-3px);
+        box-shadow: 0 10px 25px rgba(255,255,255,0.3);
+    }
+    
+    .features-section {
+        padding: 80px 0;
+        background: #f8f9fa;
+    }
+    
+    .feature-card {
+        text-align: center;
+        padding: 2rem;
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        transition: transform 0.3s ease;
+        height: 100%;
+    }
+    
+    .feature-card:hover {
+        transform: translateY(-10px);
+    }
+    
+    .feature-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        color: #667eea;
+    }
+    
+    .feature-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: #333;
+    }
+    
+    .feature-description {
+        color: #666;
+        line-height: 1.6;
+    }
+    
+    .demo-editor .badge {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+    }
+    
+    .demo-editor .text-success {
+        color: #28a745 !important;
+    }
+    
+    .demo-editor .text-info {
+        color: #17a2b8 !important;
+    }
+    
+    .stats-section {
+        background: linear-gradient(45deg, #007bff, #0056b3);
+        color: white;
+        padding: 60px 0;
+        text-align: center;
+    }
+    
+    .stat-item {
+        margin-bottom: 2rem;
+    }
+    
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+    
+    .stat-label {
+        font-size: 1.1rem;
+        opacity: 0.9;
+    }
+    
+    .floating-elements {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        pointer-events: none;
+        z-index: 1;
+    }
+    
+    .floating-element {
+        position: absolute;
+        opacity: 0.1;
+        animation: float 6s ease-in-out infinite;
+    }
+    
+    .floating-element:nth-child(1) {
+        top: 20%;
+        left: 10%;
+        animation-delay: 0s;
+    }
+    
+    .floating-element:nth-child(2) {
+        top: 60%;
+        right: 15%;
+        animation-delay: 2s;
+    }
+    
+    .floating-element:nth-child(3) {
+        bottom: 30%;
+        left: 20%;
+        animation-delay: 4s;
+    }
+    
+    @keyframes float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-20px); }
+    }
+    
+    @media (max-width: 768px) {
+        .hero-title {
+            font-size: 2.5rem;
+        }
+        
+        .hero-subtitle {
+            font-size: 1.2rem;
+        }
+        
+        .cta-buttons {
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .btn-hero {
+            width: 100%;
+            max-width: 300px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section">
+    <div class="floating-elements">
+        <div class="floating-element">💻</div>
+        <div class="floating-element">🚀</div>
+        <div class="floating-element">🏆</div>
+    </div>
+    
+    <div class="container">
+        <div class="hero-content">
+            <h1 class="hero-title">CODEBUZZ</h1>
+            <p class="hero-subtitle">AI-Powered Coding Contests & Online IDE</p>
+            <div class="cta-buttons">
+                <a href="{% url 'hackIDE:user_signup' %}" class="btn btn-hero btn-primary-hero">
+                    🚀 Get Started Free
+                </a>
+                <a href="{% url 'hackIDE:user_login' %}" class="btn btn-hero btn-outline-hero">
+                    🔐 Sign In
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Features Section -->
+<section class="features-section">
+    <div class="container">
+        <div class="row text-center mb-5">
+            <div class="col-12">
+                <h2 class="display-4 fw-bold text-dark mb-3">Why Choose hackIDE?</h2>
+                <p class="lead text-muted">Join thousands of developers in the ultimate coding challenge platform</p>
+            </div>
+        </div>
+        
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon">🏆</div>
+                    <h3 class="feature-title">Competitive Coding</h3>
+                    <p class="feature-description">
+                        Participate in exciting coding contests with real-time leaderboards, 
+                        challenging problems, and instant feedback on your solutions.
+                    </p>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon">🤖</div>
+                    <h3 class="feature-title">AI-Powered Judging</h3>
+                    <p class="feature-description">
+                        Advanced AI algorithms automatically evaluate your code, 
+                        providing instant results and detailed feedback on performance.
+                    </p>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon">💻</div>
+                    <h3 class="feature-title">Online IDE</h3>
+                    <p class="feature-description">
+                        Powerful online code editor supporting 16+ programming languages 
+                        with syntax highlighting, auto-completion, and real-time compilation.
+                    </p>
+                    <a href="{% url 'hackIDE:user_login' %}" class="btn btn-outline-primary btn-sm mt-2">
+                        Try Editor →
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row g-4 mt-4">
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon">🚀</div>
+                    <h3 class="feature-title">Instant Results</h3>
+                    <p class="feature-description">
+                        Get immediate feedback on your code with our fast execution engine. 
+                        Compile and run your solutions in seconds, not minutes.
+                    </p>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon">👥</div>
+                    <h3 class="feature-title">Community</h3>
+                    <p class="feature-description">
+                        Connect with fellow developers, share solutions, 
+                        and learn from the best in our growing community.
+                    </p>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3 class="feature-title">Analytics</h3>
+                    <p class="feature-description">
+                        Track your progress with detailed analytics, 
+                        performance metrics, and improvement suggestions.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Stats Section -->
+<section class="stats-section">
+    <div class="container">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="stat-item">
+                    <div class="stat-number">16+</div>
+                    <div class="stat-label">Programming Languages</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-item">
+                    <div class="stat-number">∞</div>
+                    <div class="stat-label">Free Contests</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-item">
+                    <div class="stat-number">⚡</div>
+                    <div class="stat-label">Instant Results</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-item">
+                    <div class="stat-number">🤖</div>
+                    <div class="stat-label">AI Judging</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Demo Section -->
+<section class="py-5">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <h2 class="display-5 fw-bold text-dark mb-4">See hackIDE in Action</h2>
+                <p class="lead text-muted mb-4">
+                    Experience the power of our online code editor with support for 16+ programming languages, 
+                    real-time compilation, and instant execution.
+                </p>
+                <div class="d-flex gap-3 flex-wrap">
+                    <a href="{% url 'hackIDE:user_signup' %}" class="btn btn-primary btn-lg">
+                        🚀 Start Coding Now
+                    </a>
+                    <a href="{% url 'hackIDE:user_login' %}" class="btn btn-outline-primary btn-lg">
+                        🔐 Sign In
+                    </a>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="demo-editor bg-dark rounded p-3" style="min-height: 300px;">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="d-flex gap-2">
+                            <span class="badge bg-danger"></span>
+                            <span class="badge bg-warning"></span>
+                            <span class="badge bg-success"></span>
+                        </div>
+                        <small class="text-light">Python 3</small>
+                    </div>
+                    <div class="bg-dark text-light p-3 rounded" style="font-family: 'Courier New', monospace; font-size: 14px;">
+                        <div class="text-success"># Welcome to hackIDE!</div>
+                        <div class="text-light">print("Hello, World!")</div>
+                        <div class="text-light">print("Ready to code?")</div>
+                        <div class="text-light">print("Let's get started!")</div>
+                        <div class="text-muted mt-3"># Output:</div>
+                        <div class="text-info">Hello, World!</div>
+                        <div class="text-info">Ready to code?</div>
+                        <div class="text-info">Let's get started!</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Final CTA Section -->
+<section class="py-5 bg-light">
+    <div class="container text-center">
+        <h2 class="display-5 fw-bold text-dark mb-4">Ready to Start Coding?</h2>
+        <p class="lead text-muted mb-4">Join hackIDE today and take your coding skills to the next level!</p>
+        <div class="d-flex gap-3 justify-content-center flex-wrap">
+            <a href="{% url 'hackIDE:user_signup' %}" class="btn btn-primary btn-lg px-5 py-3">
+                🚀 Create Free Account
+            </a>
+            <a href="{% url 'hackIDE:user_login' %}" class="btn btn-outline-primary btn-lg px-5 py-3">
+                🔐 Sign In
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Add some interactive elements
+    document.addEventListener('DOMContentLoaded', function() {
+        // Animate stats on scroll
+        const statsSection = document.querySelector('.stats-section');
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        });
+        
+        // Observe all stat items
+        document.querySelectorAll('.stat-item').forEach(item => {
+            item.style.opacity = '0';
+            item.style.transform = 'translateY(20px)';
+            item.style.transition = 'all 0.6s ease';
+            observer.observe(item);
+        });
+        
+        // Add hover effects to feature cards
+        document.querySelectorAll('.feature-card').forEach(card => {
+            card.addEventListener('mouseenter', function() {
+                this.style.transform = 'translateY(-15px) scale(1.02)';
+            });
+            
+            card.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(0) scale(1)';
+            });
+        });
+    });
+</script>
+{% endblock %}

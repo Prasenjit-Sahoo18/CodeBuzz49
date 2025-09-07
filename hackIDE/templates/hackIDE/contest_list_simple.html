@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Contests Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .contest { border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
+        .debug { background: #f0f0f0; padding: 10px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>🏆 Coding Contests - Simple Test</h1>
+    
+    <div class="debug">
+        <h3>Debug Info:</h3>
+        <p>Contests count: {{ contests|length }}</p>
+        <p>Contests object: {{ contests }}</p>
+        <p>Now: {{ now }}</p>
+    </div>
+    
+    {% if contests %}
+        <h2>Found {{ contests|length }} contests:</h2>
+        {% for contest in contests %}
+        <div class="contest">
+            <h3>{{ contest.title }}</h3>
+            <p>{{ contest.description }}</p>
+            <p><strong>Active:</strong> {{ contest.is_active }}</p>
+            <p><strong>Start:</strong> {{ contest.start_time }}</p>
+            <p><strong>End:</strong> {{ contest.end_time }}</p>
+            <p><strong>Problems:</strong> {{ contest.problems.count }}</p>
+        </div>
+        {% endfor %}
+    {% else %}
+        <h2>No contests found!</h2>
+        <p>This means either:</p>
+        <ul>
+            <li>No contests exist in database</li>
+            <li>No contests are active</li>
+            <li>Template context is empty</li>
+        </ul>
+    {% endif %}
+    
+    <hr>
+    <p><a href="?debug=json">View as JSON</a></p>
+    <p><a href="/admin/">Go to Admin</a></p>
+</body>
+</html>

@@ -1,0 +1,199 @@
+{% extends 'hackIDE/base.html' %}
+{% load static %}
+
+{% block title %}{{ contest.title }} - Leaderboard{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'hackIDE:contest_list' %}">Contests</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'hackIDE:contest_detail' contest.id %}">{{ contest.title }}</a></li>
+                    <li class="breadcrumb-item active">Leaderboard</li>
+                </ol>
+            </nav>
+            
+            <div class="leaderboard-header">
+                <h1>🏆 {{ contest.title }} - Leaderboard</h1>
+                <p class="lead">See how you rank against other participants!</p>
+            </div>
+            
+            {% if participants %}
+                <div class="leaderboard-table">
+                    <table class="table table-hover">
+                        <thead class="thead-dark">
+                            <tr>
+                                <th>Rank</th>
+                                <th>Participant</th>
+                                <th>Score</th>
+                                <th>Problems Solved</th>
+                                <th>Joined</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for participant in participants %}
+                            <tr class="{% if participant.user == request.user %}table-primary{% endif %}">
+                                <td>
+                                    {% if forloop.counter == 1 %}
+                                        🥇
+                                    {% elif forloop.counter == 2 %}
+                                        🥈
+                                    {% elif forloop.counter == 3 %}
+                                        🥉
+                                    {% else %}
+                                        #{{ forloop.counter }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <strong>{{ participant.user.username }}</strong>
+                                    {% if participant.user == request.user %}
+                                        <span class="badge badge-info">You</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="score">{{ participant.total_score }}</span>
+                                </td>
+                                <td>
+                                    <span class="problems-solved">{{ participant.problems_solved }}</span>
+                                </td>
+                                <td>
+                                    <small>{{ participant.joined_at|date:"M d, H:i" }}</small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="your-stats mt-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Your Performance</h5>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="stat-item">
+                                        <h6>Current Rank</h6>
+                                        <p class="stat-value">
+                                            {% for participant in participants %}
+                                                {% if participant.user == request.user %}
+                                                    #{{ forloop.counter }}
+                                                {% endif %}
+                                            {% endfor %}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="stat-item">
+                                        <h6>Total Score</h6>
+                                        <p class="stat-value">
+                                            {% for participant in participants %}
+                                                {% if participant.user == request.user %}
+                                                    {{ participant.total_score }}
+                                                {% endif %}
+                                            {% endfor %}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="stat-item">
+                                        <h6>Problems Solved</h6>
+                                        <p class="stat-value">
+                                            {% for participant in participants %}
+                                                {% if participant.user == request.user %}
+                                                    {{ participant.problems_solved }}
+                                                {% endif %}
+                                            {% endfor %}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="text-center">
+                    <h3>No participants yet</h3>
+                    <p class="text-muted">Be the first to join and start solving problems!</p>
+                                         <a href="{% url 'hackIDE:contest_detail' contest.id %}" class="btn btn-primary">
+                         View Problems
+                     </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.leaderboard-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.leaderboard-table {
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+.table {
+    margin-bottom: 0;
+}
+
+.table th {
+    border-top: none;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.9rem;
+    letter-spacing: 0.5px;
+}
+
+.table td {
+    vertical-align: middle;
+    padding: 1rem 0.75rem;
+}
+
+.score {
+    font-weight: bold;
+    font-size: 1.1rem;
+    color: #28a745;
+}
+
+.problems-solved {
+    font-weight: bold;
+    color: #007bff;
+}
+
+.your-stats .card {
+    border: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-item h6 {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin: 0;
+    color: #333;
+}
+
+.badge {
+    margin-left: 5px;
+}
+
+.table-primary {
+    background-color: #e3f2fd !important;
+}
+</style>
+{% endblock %}

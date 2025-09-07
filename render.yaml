@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: codebuzz
+    env: python
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn hackIDE_project.wsgi:application"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.16

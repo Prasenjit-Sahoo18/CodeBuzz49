@@ -1,0 +1,180 @@
+{% extends 'hackIDE/base.html' %}
+{% load static %}
+
+{% block title %}Coding Contests - CODEBUZZ{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+            <h1 class="text-center mb-4">🏆 Coding Contests</h1>
+            
+            {% if contests %}
+                <div class="row">
+                    {% for contest in contests %}
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">{{ contest.title }}</h5>
+                                <p class="card-text">{{ contest.description|truncatewords:30 }}</p>
+                                
+                                <div class="contest-info">
+                                    <small class="text-muted">
+                                        <strong>Start:</strong> <span class="contest-time" data-time="{{ contest.start_time|date:'c' }}">{{ contest.start_time|date:"M d, Y H:i" }}</span><br>
+                                        <strong>End:</strong> <span class="contest-time" data-time="{{ contest.end_time|date:'c' }}">{{ contest.end_time|date:"M d, Y H:i" }}</span><br>
+                                        <strong>Problems:</strong> {{ contest.problems.count }}
+                                    </small>
+                                </div>
+                                
+                                <div class="contest-status mt-3">
+                                    {% if contest.is_running %}
+                                        <span class="badge badge-success">🟢 Live Now</span>
+                                        <div class="countdown mt-2" data-end="{{ contest.end_time|date:'c' }}">
+                                            <small class="text-success">Ends in: <span class="time-remaining"></span></small>
+                                        </div>
+                                    {% elif contest.start_time > now %}
+                                        <span class="badge badge-info">⏰ Coming Soon</span>
+                                        <div class="countdown mt-2" data-start="{{ contest.start_time|date:'c' }}">
+                                            <small class="text-info">Starts in: <span class="time-remaining"></span></small>
+                                        </div>
+                                    {% else %}
+                                        <span class="badge badge-secondary">🔒 Ended</span>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="mt-3">
+                                    <a href="{% url 'hackIDE:contest_detail' contest.id %}" class="btn btn-primary">
+                                        View Contest
+                                    </a>
+                                    {% if contest.is_running %}
+                                        <a href="{% url 'hackIDE:contest_leaderboard' contest.id %}" class="btn btn-outline-secondary">
+                                            Leaderboard
+                                        </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center">
+                    <h3>No contests available at the moment</h3>
+                    <p class="text-muted">Check back later for new coding challenges!</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.card {
+    border: 1px solid #ddd;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.contest-info {
+    background-color: #f8f9fa;
+    padding: 10px;
+    border-radius: 5px;
+    margin: 10px 0;
+}
+
+.badge {
+    font-size: 0.9em;
+    padding: 8px 12px;
+}
+
+.btn {
+    margin-right: 5px;
+}
+
+.countdown {
+    font-weight: bold;
+}
+
+.time-remaining {
+    color: #007bff;
+}
+
+.contest-time {
+    font-family: monospace;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Update all countdown timers
+    function updateCountdowns() {
+        const countdowns = document.querySelectorAll('.countdown');
+        
+        countdowns.forEach(countdown => {
+            const endTime = countdown.dataset.end;
+            const startTime = countdown.dataset.start;
+            const timeRemaining = countdown.querySelector('.time-remaining');
+            
+            if (endTime) {
+                // Contest is running - countdown to end
+                const end = new Date(endTime);
+                const now = new Date();
+                const diff = end - now;
+                
+                if (diff > 0) {
+                    const hours = Math.floor(diff / (1000 * 60 * 60));
+                    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+                    
+                    timeRemaining.textContent = `${hours}h ${minutes}m ${seconds}s`;
+                } else {
+                    timeRemaining.textContent = 'Contest ended!';
+                    countdown.style.display = 'none';
+                }
+            } else if (startTime) {
+                // Contest hasn't started - countdown to start
+                const start = new Date(startTime);
+                const now = new Date();
+                const diff = start - now;
+                
+                if (diff > 0) {
+                    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                    
+                    if (days > 0) {
+                        timeRemaining.textContent = `${days}d ${hours}h ${minutes}m`;
+                    } else {
+                        timeRemaining.textContent = `${hours}h ${minutes}m`;
+                    }
+                } else {
+                    timeRemaining.textContent = 'Starting now!';
+                    countdown.style.display = 'none';
+                }
+            }
+        });
+    }
+    
+    // Update countdowns every second
+    updateCountdowns();
+    setInterval(updateCountdowns, 1000);
+    
+    // Update contest times to show current local time
+    function updateContestTimes() {
+        const timeElements = document.querySelectorAll('.contest-time');
+        
+        timeElements.forEach(element => {
+            const utcTime = new Date(element.dataset.time);
+            const localTime = utcTime.toLocaleString();
+            element.textContent = localTime;
+        });
+    }
+    
+    updateContestTimes();
+});
+</script>
+{% endblock %}

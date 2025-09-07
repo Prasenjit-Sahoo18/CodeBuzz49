@@ -1,0 +1,51 @@
+{% extends 'hackIDE/base.html' %}
+{% block title %}Premium Plans - CODEBUZZ{% endblock %}
+{% block content %}
+<div class="container">
+    <h2 class="mb-4">Choose your Premium plan</h2>
+    {% if has_subscription %}
+        <div class="alert alert-success">
+            <h6><i class="fas fa-check-circle"></i> You already have an active subscription!</h6>
+            <p class="mb-0">You can access all premium features. No need to purchase another subscription.</p>
+        </div>
+    {% endif %}
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">What's included</h5>
+                    <ul class="mb-0">
+                        <li>AI Solver: get hints and guided solutions</li>
+                        <li>Company Tag: filter and practice by company</li>
+                        <li>Premium-only problems and detailed editorials</li>
+                        <li>Faster judging and priority support</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        {% for plan in plans %}
+            <div class="col-md-4 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ plan.display_name }}</h5>
+                        <p class="card-text">{{ plan.description }}</p>
+                        <p class="fw-bold">₹ {{ plan.price_inr }} / {{ plan.duration_days }} days</p>
+                        {% if has_subscription %}
+                            <button class="btn btn-secondary" disabled>Already Subscribed</button>
+                        {% else %}
+                            <a class="btn btn-primary" href="{% url 'hackIDE:buy_premium' plan.name %}">Buy {{ plan.display_name }}</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% empty %}
+            <p>No plans available.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+

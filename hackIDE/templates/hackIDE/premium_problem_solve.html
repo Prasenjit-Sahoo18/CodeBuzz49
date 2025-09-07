@@ -1,0 +1,390 @@
+{% extends 'hackIDE/base.html' %}
+{% load static %}
+
+{% block title %}{{ problem.title }} - Premium{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.css">
+<style>
+.problem-container {
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    margin-bottom: 2rem;
+}
+.problem-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1.5rem;
+    border-radius: 10px 10px 0 0;
+}
+.problem-meta { display: flex; gap: 15px; margin-top: 1rem; }
+.meta-item { background: rgba(255,255,255,0.2); padding: 5px 12px; border-radius: 20px; font-size: 0.9rem; }
+.editor-container { padding: 1.5rem; }
+#editor { height: 400px; border: 1px solid #ddd; border-radius: 5px; }
+.controls { margin-top: 1rem; display: flex; justify-content: space-between; align-items: center; }
+.test-cases { background: #f8f9fa; padding: 1.5rem; border-radius: 0 0 10px 10px; }
+.test-case { background: white; padding: 1rem; margin: 0.5rem 0; border-radius: 5px; border-left: 4px solid #007bff; }
+.submission-result { margin-top: 1rem; padding: 1rem; border-radius: 5px; display: none; }
+.submission-result.success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+.submission-result.error { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+.ai-solution-container { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 1.5rem; margin-top: 1rem; display: none; }
+.ai-solution-header { display: flex; justify-content: between; align-items: center; margin-bottom: 1rem; }
+.ai-solution-content { max-height: 400px; overflow-y: auto; }
+.solution-section { margin-bottom: 1.5rem; }
+.solution-section h6 { color: #495057; font-weight: 600; margin-bottom: 0.5rem; }
+.code-block { background: #2d3748; color: #e2e8f0; padding: 1rem; border-radius: 5px; font-family: 'Courier New', monospace; white-space: pre-wrap; }
+.ai-controls { display: flex; gap: 10px; align-items: center; margin-bottom: 1rem; }
+.copy-btn { background: #28a745; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; }
+.copy-btn:hover { background: #218838; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-md-12">
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><a href="{% url 'hackIDE:premium_problems' %}">Premium Problems</a></li>
+          <li class="breadcrumb-item active">{{ problem.title }}</li>
+        </ol>
+      </nav>
+
+      <div class="problem-container">
+        <div class="problem-header">
+          <h2>{{ problem.title }}</h2>
+          <p class="mb-0">{{ problem.description }}</p>
+          <div class="problem-meta">
+            <span class="meta-item"><strong>Difficulty:</strong> {{ problem.difficulty }}</span>
+            <span class="meta-item"><strong>Points:</strong> {{ problem.points }}</span>
+            <span class="meta-item"><strong>Time Limit:</strong> {{ problem.time_limit }}ms</span>
+            <span class="meta-item"><strong>Memory Limit:</strong> {{ problem.memory_limit }}MB</span>
+          </div>
+        </div>
+
+        <div class="editor-container">
+          <h5>Your Solution</h5>
+          <div id="editor">{{ problem.get_boilerplate_code|default:"" }}</div>
+
+          <div class="controls">
+            <div class="language-selector">
+              <label for="language">Language:</label>
+              <select id="language" class="form-select form-select-sm" style="width: auto; display: inline-block; margin-left: 10px;">
+                <option value="PYTHON">Python</option>
+                <option value="JAVA">Java</option>
+                <option value="CPP">C++</option>
+                <option value="JAVASCRIPT">JavaScript</option>
+                <option value="C">C</option>
+              </select>
+            </div>
+            <div class="action-buttons">
+              <button id="get-ai-solution" class="btn btn-warning">🤖 Get AI Solution</button>
+              <button id="test-code" class="btn btn-outline-primary">🧪 Test Code</button>
+              <button id="submit-solution" class="btn btn-success">🚀 Submit Solution</button>
+            </div>
+          </div>
+
+          <div id="submission-result" class="submission-result"></div>
+          
+          <!-- AI Solution Container -->
+          <div id="ai-solution-container" class="ai-solution-container">
+            <div class="ai-solution-header">
+              <h5 style="margin: 0; color: #495057;">🤖 AI-Generated Solution</h5>
+              <button id="close-ai-solution" class="btn btn-sm btn-outline-secondary">× Close</button>
+            </div>
+            
+            <div class="ai-controls">
+              <label for="solution-type">Solution Type:</label>
+              <select id="solution-type" class="form-select form-select-sm" style="width: auto;">
+                <option value="hint">Hint & Approach</option>
+                <option value="pseudocode">Pseudocode</option>
+                <option value="complete" selected>Complete Solution</option>
+              </select>
+              <button id="regenerate-solution" class="btn btn-sm btn-primary">Regenerate</button>
+            </div>
+            
+            <div id="ai-solution-content" class="ai-solution-content">
+              <!-- AI solution will be populated here -->
+            </div>
+          </div>
+        </div>
+
+        <div class="test-cases">
+          <h5>Test Cases</h5>
+          {% for test_case in parsed_test_cases %}
+          <div class="test-case">
+            <div class="row">
+              <div class="col-md-6">
+                <strong>Input:</strong>
+                <pre>{{ test_case.input|default:"No input" }}</pre>
+              </div>
+              <div class="col-md-6">
+                <strong>Expected Output:</strong>
+                <pre>{{ test_case.output|default:"No output" }}</pre>
+              </div>
+            </div>
+          </div>
+          {% empty %}
+          <div class="text-muted">No test cases provided.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"></script>
+<script>
+// Initialize Ace Editor
+var editor = ace.edit("editor");
+editor.setTheme("ace/theme/monokai");
+editor.session.setMode("ace/mode/python");
+editor.setOptions({ enableBasicAutocompletion: true, enableLiveAutocompletion: true, enableSnippets: true });
+let lastLoadedBoilerplate = '';
+function setEditorLanguage(language){
+  var mode = 'ace/mode/python';
+  switch(language){
+    case 'JAVA': mode='ace/mode/java'; break;
+    case 'CPP':
+    case 'C': mode='ace/mode/c_cpp'; break;
+    case 'JAVASCRIPT': mode='ace/mode/javascript'; break;
+    case 'PYTHON': default: mode='ace/mode/python';
+  }
+  editor.session.setMode(mode);
+}
+const boilerplateMap = {{ boilerplate_map|default:"{}"|safe }};
+function loadBoilerplate(language, forceReplace=false){
+  const bp = boilerplateMap[language] || boilerplateMap[language.toUpperCase()] || '';
+  if(!bp) return;
+  const current = editor.getValue();
+  const shouldReplace = forceReplace || current.trim()==='' || current === lastLoadedBoilerplate;
+  if(shouldReplace){ editor.setValue(bp, -1); lastLoadedBoilerplate = bp; }
+}
+(function init(){
+  const initialLang = document.getElementById('language').value;
+  setEditorLanguage(initialLang); loadBoilerplate(initialLang, true);
+})();
+
+document.getElementById('language').addEventListener('change', function(){
+  const language = this.value; setEditorLanguage(language); loadBoilerplate(language, true);
+});
+
+document.getElementById('test-code').addEventListener('click', function(){
+  showResult('Code testing is not yet implemented. Use Submit Solution instead.', 'info');
+});
+
+document.getElementById('submit-solution').addEventListener('click', function(){
+  var sourceCode = editor.getValue();
+  var language = document.getElementById('language').value;
+  if(!sourceCode.trim()){ showResult('Please write some code before submitting!', 'error'); return; }
+  this.disabled = true; this.innerHTML = '⏳ Processing...';
+  fetch(`/premium/problem/{{ problem.id }}/`, {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value },
+    body: `source_code=${encodeURIComponent(sourceCode)}&language=${language}`
+  }).then(r=>r.json()).then(data=>{
+    if(data.status==='accepted'){ showResult(`🎉 ${data.message}`, 'success'); showDetailedResult(data); }
+    else if(data.status==='wrong_answer'){ showResult(`❌ ${data.message}`, 'error'); showDetailedResult(data); }
+    else if(data.status==='runtime_error'){ showResult(`💥 ${data.message}`, 'error'); showDetailedResult(data); }
+    else { showResult('Error: '+data.message, 'error'); }
+  }).catch(err=>{ showResult('Error submitting solution: '+err.message, 'error'); })
+  .finally(()=>{ this.disabled=false; this.innerHTML='🚀 Submit Solution'; });
+});
+
+// AI Solution functionality
+document.getElementById('get-ai-solution').addEventListener('click', function() {
+  generateAISolution();
+});
+
+document.getElementById('regenerate-solution').addEventListener('click', function() {
+  generateAISolution();
+});
+
+document.getElementById('close-ai-solution').addEventListener('click', function() {
+  document.getElementById('ai-solution-container').style.display = 'none';
+});
+
+function generateAISolution() {
+  const button = document.getElementById('get-ai-solution');
+  const regenerateBtn = document.getElementById('regenerate-solution');
+  const language = document.getElementById('language').value;
+  const solutionType = document.getElementById('solution-type').value;
+  const container = document.getElementById('ai-solution-container');
+  const content = document.getElementById('ai-solution-content');
+  
+  // Show loading state
+  button.disabled = true;
+  regenerateBtn.disabled = true;
+  button.innerHTML = '⏳ Generating...';
+  regenerateBtn.innerHTML = '⏳ Generating...';
+  
+  // Show container
+  container.style.display = 'block';
+  content.innerHTML = '<div class="text-center p-3"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">Generating AI solution...</p></div>';
+  
+  // Make API request
+  fetch(`/premium/problem/{{ problem.id }}/ai-solution/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+    },
+    body: `language=${encodeURIComponent(language)}&solution_type=${encodeURIComponent(solutionType)}`
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      displayAISolution(data);
+    } else {
+      content.innerHTML = `
+        <div class="alert alert-warning">
+          <h6>⚠️ Unable to Generate Solution</h6>
+          <p>${data.message || 'Failed to generate AI solution'}</p>
+          ${data.fallback_available ? '<button class="btn btn-sm btn-primary" onclick="generateFallbackSolution()">Get Template Solution</button>' : ''}
+        </div>
+      `;
+    }
+  })
+  .catch(error => {
+    console.error('AI Solution error:', error);
+    content.innerHTML = `
+      <div class="alert alert-danger">
+        <h6>❌ Error</h6>
+        <p>Network error occurred while generating solution.</p>
+        <button class="btn btn-sm btn-primary" onclick="generateFallbackSolution()">Get Template Solution</button>
+      </div>
+    `;
+  })
+  .finally(() => {
+    // Reset button states
+    button.disabled = false;
+    regenerateBtn.disabled = false;
+    button.innerHTML = '🤖 Get AI Solution';
+    regenerateBtn.innerHTML = 'Regenerate';
+  });
+}
+
+function displayAISolution(data) {
+  const content = document.getElementById('ai-solution-content');
+  
+  const solutionHtml = `
+    <div class="solution-section">
+      <div class="d-flex justify-content-between align-items-center">
+        <h6>💡 Approach</h6>
+      </div>
+      <div class="bg-light p-3 rounded">
+        <pre style="white-space: pre-wrap; margin: 0;">${data.approach || 'No approach provided'}</pre>
+      </div>
+    </div>
+    
+    <div class="solution-section">
+      <div class="d-flex justify-content-between align-items-center">
+        <h6>💻 Code Solution (${data.language})</h6>
+        <button class="copy-btn" onclick="copyToEditor()">Copy to Editor</button>
+      </div>
+      <div class="code-block" id="ai-generated-code">${data.solution || 'No code provided'}</div>
+    </div>
+    
+    <div class="solution-section">
+      <h6>📝 Explanation</h6>
+      <div class="bg-light p-3 rounded">
+        <pre style="white-space: pre-wrap; margin: 0;">${data.explanation || 'No explanation provided'}</pre>
+      </div>
+    </div>
+    
+    <div class="solution-section">
+      <h6>⏱️ Complexity Analysis</h6>
+      <div class="bg-light p-3 rounded">
+        <pre style="white-space: pre-wrap; margin: 0;">${data.complexity || 'Not analyzed'}</pre>
+      </div>
+    </div>
+    
+    <div class="alert alert-info mt-3">
+      <small>
+        <strong>📜 Educational Note:</strong> This solution is generated by AI to help you learn. 
+        Make sure to understand the logic before using it. Try to implement variations and test edge cases.
+      </small>
+    </div>
+  `;
+  
+  content.innerHTML = solutionHtml;
+}
+
+function copyToEditor() {
+  const codeBlock = document.getElementById('ai-generated-code');
+  const code = codeBlock.textContent;
+  
+  // Set the code in the editor
+  editor.setValue(code, -1);
+  
+  // Show feedback
+  showResult('✅ AI solution copied to editor!', 'success');
+  
+  // Update copy button temporarily
+  const copyBtn = event.target;
+  const originalText = copyBtn.innerHTML;
+  copyBtn.innerHTML = '✅ Copied!';
+  copyBtn.style.background = '#28a745';
+  
+  setTimeout(() => {
+    copyBtn.innerHTML = originalText;
+    copyBtn.style.background = '#28a745';
+  }, 2000);
+}
+
+function generateFallbackSolution() {
+  const language = document.getElementById('language').value;
+  const content = document.getElementById('ai-solution-content');
+  
+  // Simple fallback templates
+  const templates = {
+    'PYTHON': `# Basic solution template for {{ problem.title }}\ndef solve():\n    # TODO: Implement your solution here\n    # Read input\n    # Process the problem\n    # Return/print the result\n    pass\n\nif __name__ == "__main__":\n    solve()`,
+    'JAVA': `import java.util.*;\n\npublic class Solution {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        // TODO: Implement your solution here\n        // Read input\n        // Process the problem\n        // Print the result\n    }\n}`,
+    'CPP': `#include <iostream>\n#include <vector>\nusing namespace std;\n\nint main() {\n    // TODO: Implement your solution here\n    // Read input\n    // Process the problem\n    // Print the result\n    return 0;\n}`,
+    'C': `#include <stdio.h>\n\nint main() {\n    // TODO: Implement your solution here\n    // Read input\n    // Process the problem\n    // Print the result\n    return 0;\n}`,
+    'JAVASCRIPT': `function solve() {\n    // TODO: Implement your solution here\n    // Read input\n    // Process the problem\n    // Print/return the result\n}\n\nsolve();`
+  };
+  
+  const template = templates[language] || templates['PYTHON'];
+  
+  const fallbackHtml = `
+    <div class="solution-section">
+      <h6>💻 Template Solution (${language})</h6>
+      <div class="code-block" id="ai-generated-code">${template}</div>
+      <button class="copy-btn mt-2" onclick="copyToEditor()">Copy to Editor</button>
+    </div>
+    
+    <div class="alert alert-info">
+      <strong>📝 Template Guide:</strong><br>
+      1. Read and understand the problem requirements<br>
+      2. Identify the input format and constraints<br>
+      3. Plan your algorithm step by step<br>
+      4. Implement the solution logic<br>
+      5. Test with the provided examples
+    </div>
+  `;
+  
+  content.innerHTML = fallbackHtml;
+}
+
+function showDetailedResult(data){
+  var resultDiv=document.getElementById('submission-result'); var details='';
+  if(data.status==='accepted'){
+    details = `<div class="alert alert-success"><h6>✅ Solution Accepted!</h6><p><strong>Score:</strong> ${data.score} points</p><p><strong>Execution Time:</strong> ${data.execution_time}ms</p><p><strong>Memory Used:</strong> ${data.memory_used}KB</p></div>`;
+  } else if(data.status==='wrong_answer'){
+    details = `<div class="alert alert-warning"><h6>❌ Wrong Answer on Test Case ${data.test_case}</h6><p><strong>Expected:</strong> <code>${data.expected}</code></p><p><strong>Your Output:</strong> <code>${data.actual}</code></p><p><strong>Progress:</strong> ${data.passed_tests}/${data.total_tests} test cases passed</p></div>`;
+  } else if(data.status==='runtime_error'){
+    details = `<div class="alert alert-danger"><h6>💥 Runtime Error</h6><p><strong>Error:</strong> ${data.message}</p><p><strong>Progress:</strong> ${data.passed_tests}/${data.total_tests} test cases passed</p></div>`;
+  }
+  resultDiv.innerHTML = details; resultDiv.style.display='block';
+}
+function showResult(message, type){
+  var resultDiv=document.getElementById('submission-result');
+  resultDiv.className=`submission-result ${type}`; resultDiv.innerHTML=message; resultDiv.style.display='block';
+  setTimeout(()=>{ resultDiv.style.display='none'; }, 5000);
+}
+</script>
+{% endblock %}
+

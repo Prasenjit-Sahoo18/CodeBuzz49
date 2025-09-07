@@ -1,0 +1,10 @@
+{% extends 'hackIDE/base.html' %}
+
+{% block title %}Test Page{% endblock %}
+
+{% block content %}
+<h1>Test Page Works!</h1>
+<p>If you can see this, the base template is working.</p>
+<p>Current user: {{ user }}</p>
+<p>User authenticated: {{ user.is_authenticated }}</p>
+{% endblock %}
